@@ -1,0 +1,39 @@
+{
+  "name": "expense-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Single-user ATO-compliant expense tracker for an Australian media production business",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "hash-password": "node scripts/hash-password.mjs",
+    "sample-data": "tsx scripts/sample-data.ts"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.0",
+    "@vercel/blob": "^1.1.0",
+    "archiver": "^7.0.1",
+    "drizzle-orm": "^0.44.0",
+    "iron-session": "^8.0.4",
+    "next": "^15.4.0",
+    "papaparse": "^5.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tesseract.js": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/node": "^24.0.0",
+    "@types/papaparse": "^5.3.15",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "drizzle-kit": "^0.31.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}
