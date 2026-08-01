@@ -63,6 +63,18 @@ npm run db:migrate
 Project → **Storage** → **Create → Blob** → connect it to the project.
 Vercel injects `BLOB_READ_WRITE_TOKEN` automatically. Redeploy after connecting.
 
+**Gotchas in the connect dialog (they will bite):**
+- Creating the store is NOT the same as connecting it — make sure the project
+  appears under the store's **Connections** with the env vars listed.
+- Leave the env-variable prefix as **`BLOB`** (it's a *prefix*: Vercel appends
+  `_READ_WRITE_TOKEN` etc. to whatever you type).
+- **Tick "Add a read-write token env var to this connection"** — this app uses
+  the classic token, not OIDC. Without it you'll get "Vercel Blob: No token
+  found" on receipt uploads.
+- Do NOT press "Revoke Token" on the store page — that kills receipt uploads.
+- Env vars only apply to new deployments: redeploy (or push a commit) after
+  connecting.
+
 Receipt files are stored content-addressed under `receipts/` in the Blob store and are
 only ever served through the app's authenticated `/api/receipts/...` routes.
 
