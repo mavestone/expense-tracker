@@ -36,6 +36,7 @@ export default function ExpenseList({ expenses, categories }: { expenses: Expens
             {(e.receiptCount ?? 0) === 0 && e.status !== "void" && <span className="badge warn">no receipt</span>}
             {e.source === "subscription" && <span className="badge neutral">sub</span>}
             {e.source === "import" && <span className="badge neutral">imported</span>}
+            {e.source === "agent" && <span className="badge neutral">via agent</span>}
           </div>
         </Link>
       ))}

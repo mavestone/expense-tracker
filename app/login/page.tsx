@@ -34,10 +34,12 @@ export default function LoginPage() {
   return (
     <div className="login">
       <form className="card" onSubmit={submit}>
-        <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ width: 12, height: 12, borderRadius: 4, background: "var(--accent)", display: "inline-block" }} />
-          Expenses
-        </h1>
+        <svg className="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <rect width="64" height="64" rx="14" fill="var(--accent)" />
+          <path d="M20 14h24a2 2 0 0 1 2 2v32l-4-3-4 3-4-3-4 3-4-3-4 3V16a2 2 0 0 1 2-2z" fill="none" stroke="#fff" strokeWidth="3" strokeLinejoin="round" />
+          <path d="M26 24h12M26 31h12M26 38h7" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+        <h1>Expenses</h1>
         <p className="muted small" style={{ marginTop: 0 }}>
           Business expense records — private access.
         </p>

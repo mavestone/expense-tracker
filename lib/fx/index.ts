@@ -34,20 +34,19 @@ export async function getRateForDate(dateISO: string, currency: string): Promise
 
   const d = await db();
 
-  // 1) Cache: latest cached rate at or before the requested date, within lookback.
-  const floor = addDays(dateISO, -LOOKBACK_DAYS);
-  const cached = await d
+  // 1) Cache: EXACT-date hit only (a rate published on the requested day).
+  const exact = await d
     .select()
     .from(schema.fxRates)
-    .where(and(eq(schema.fxRates.currency, ccy), lte(schema.fxRates.date, dateISO), gte(schema.fxRates.date, floor)))
-    .orderBy(desc(schema.fxRates.date))
+    .where(and(eq(schema.fxRates.currency, ccy), eq(schema.fxRates.date, dateISO)))
     .limit(1);
-  if (cached.length > 0) {
-    const c = cached[0];
+  if (exact.length > 0) {
+    const c = exact[0];
     return { rateAudPerUnit: c.rateAudPerUnit, rateDate: c.date, source: c.source };
   }
 
-  // 2) RBA daily table (canonical Australian source).
+  // 2) RBA daily table (canonical Australian source) — finds the nearest
+  //    published day at or before the requested date.
   try {
     const table = await getRbaTable();
     const hit = findRbaRate(table, dateISO, ccy, LOOKBACK_DAYS);
@@ -68,6 +67,20 @@ export async function getRateForDate(dateISO: string, currency: string): Promise
     }
   } catch {
     // fall through
+  }
+
+  // 4) Last resort when offline: most recent cached rate within the
+  //    lookback window (the true rate date is recorded on the record).
+  const floor = addDays(dateISO, -LOOKBACK_DAYS);
+  const cached = await d
+    .select()
+    .from(schema.fxRates)
+    .where(and(eq(schema.fxRates.currency, ccy), lte(schema.fxRates.date, dateISO), gte(schema.fxRates.date, floor)))
+    .orderBy(desc(schema.fxRates.date))
+    .limit(1);
+  if (cached.length > 0) {
+    const c = cached[0];
+    return { rateAudPerUnit: c.rateAudPerUnit, rateDate: c.date, source: c.source };
   }
 
   throw new FxUnavailableError(

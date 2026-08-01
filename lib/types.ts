@@ -55,7 +55,7 @@ export type ExpenseDto = {
   status: "draft" | "active" | "void";
   voidReason: string | null;
   voidedAt: string | null;
-  source: "manual" | "subscription" | "import";
+  source: "manual" | "subscription" | "import" | "agent";
   subscriptionId: string | null;
   importBatchId: string | null;
   missingReceiptAck: boolean;

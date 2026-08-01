@@ -80,7 +80,7 @@ export const expenses = sqliteTable(
     voidReason: text("void_reason"),
     voidedAt: text("voided_at"),
 
-    source: text("source").notNull().default("manual"), // manual | subscription | import
+    source: text("source").notNull().default("manual"), // manual | subscription | import | agent
     subscriptionId: text("subscription_id"),
     importBatchId: text("import_batch_id"),
     missingReceiptAck: integer("missing_receipt_ack", { mode: "boolean" }).notNull().default(false),

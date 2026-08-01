@@ -220,7 +220,7 @@ function ReportsInner() {
               </div>
 
               {gst.totals.flaggedCount > 0 && (
-                <div className="card" style={{ borderColor: "#eecac6" }}>
+                <div className="card flagged">
                   <h2 style={{ color: "var(--danger)" }}>⚠ GST credits blocked — no tax invoice</h2>
                   <p className="small muted mt0">These GST-claimable purchases are over {formatAUD(gst.thresholdCents)} with no receipt attached. Attach a valid tax invoice to include the credit in 1B.</p>
                   <div className="tablewrap">

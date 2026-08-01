@@ -185,7 +185,7 @@ export default function ExpenseDetailPage() {
       )}
 
       {voiding && (
-        <div className="card" style={{ borderColor: "var(--danger)" }}>
+        <div className="card flagged">
           <h2>Void this record?</h2>
           <p className="small muted mt0">Nothing is ever deleted — the record stays readable in the audit view with your reason, and is excluded from reports and exports.</p>
           <div className="field">
@@ -254,7 +254,7 @@ export default function ExpenseDetailPage() {
           {e.notes && <><dt>Notes</dt><dd>{e.notes}</dd></>}
           <dt>Source</dt>
           <dd>
-            {e.source === "manual" ? "Manual entry" : e.source === "subscription" ? "Subscription renewal" : "CSV import"}
+            {e.source === "manual" ? "Manual entry" : e.source === "subscription" ? "Subscription renewal" : e.source === "agent" ? "Hyperagent (analysed invoice)" : "CSV import"}
             {data.subscription && <> · <Link href="/subscriptions">{data.subscription.vendor}</Link></>}
           </dd>
           <dt>Record ID</dt><dd><code className="small">{e.id}</code></dd>

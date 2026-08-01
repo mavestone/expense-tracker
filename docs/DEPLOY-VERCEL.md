@@ -54,6 +54,7 @@ npm run db:migrate
    | `SESSION_SECRET` | `openssl rand -hex 32` |
    | `APP_TIMEZONE` | `Australia/Sydney` |
    | `CRON_SECRET` | `openssl rand -hex 16` |
+   | `AGENT_API_KEY` | optional — `openssl rand -hex 24`; enables AI-assistant invoice ingestion (`/api/agent/*`) |
 
 3. Deploy.
 

@@ -207,7 +207,7 @@ export async function createExpense(
   input: ExpenseInput,
   opts: {
     status?: "draft" | "active";
-    source?: "manual" | "subscription" | "import";
+    source?: "manual" | "subscription" | "import" | "agent";
     subscriptionId?: string | null;
     importBatchId?: string | null;
     resolveFx?: boolean;

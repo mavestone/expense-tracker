@@ -112,6 +112,20 @@ See **[docs/DEPLOY-VERCEL.md](docs/DEPLOY-VERCEL.md)** for the full step-by-step
 | `SESSION_SECRET` | 32+ random chars — required in production |
 | `APP_TIMEZONE` | For "today" in renewals/staleness (default `Australia/Sydney`) |
 | `CRON_SECRET` | Protects `/api/cron/renewals` when using Vercel Cron |
+| `AGENT_API_KEY` | Optional: enables the `/api/agent/*` ingestion API for AI assistants |
+
+## Agent ingestion API (optional)
+
+Set `AGENT_API_KEY` (16+ random chars) to enable two bearer-authenticated endpoints
+so an AI assistant (e.g. a Hyperagent skill) can post analysed invoices for you:
+
+- `GET /api/agent/meta` — categories, payment methods, thresholds (for mapping)
+- `POST /api/agent/expense` — create a fully derived expense (FX resolved for the
+  incurred date, GST defaults applied) with an optional base64 receipt attached in
+  the same call. Accepts `status: "draft"` if you want in-app review before it counts.
+
+Records created this way are marked **source: agent** with an audit note, and follow
+every integrity rule manual entries do. The API never deletes or edits anything.
 
 ## Data & compliance notes (for you and your accountant)
 
