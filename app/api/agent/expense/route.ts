@@ -1,7 +1,7 @@
 import { api, json } from "@/lib/api";
 import { checkAgentAuth, agentApiEnabled } from "@/lib/agent-auth";
 import { db, schema } from "@/lib/db";
-import { createExpense, expenseFlags, type ExpenseInput } from "@/lib/expenses";
+import { createExpense, voidExpense, expenseFlags, type ExpenseInput } from "@/lib/expenses";
 import { addReceipt } from "@/lib/receipts";
 import { defaultTreatmentForCurrency, isGstTreatment } from "@/lib/gst";
 import { parseMoneyToCents, percentToBp } from "@/lib/money";
@@ -122,7 +122,21 @@ export const POST = api(
 
     let receipt = null;
     if (receiptBuf && p.receipt) {
-      receipt = await addReceipt(expense.id, { buffer: receiptBuf, filename: p.receipt.filename || "receipt", mime: p.receipt.mime });
+      try {
+        receipt = await addReceipt(expense.id, { buffer: receiptBuf, filename: p.receipt.filename || "receipt", mime: p.receipt.mime });
+      } catch (e) {
+        // Keep ingestion atomic from the caller's perspective: if receipt
+        // storage fails (e.g. Blob not configured), void the just-created
+        // record (audited, never deleted) so a retry can't double-post.
+        await voidExpense(expense.id, "Receipt storage failed during agent ingestion — voided for clean retry").catch(() => {});
+        return json(
+          {
+            error: `Receipt storage failed: ${(e as Error).message} — the expense record was voided so you can safely retry once storage is fixed.`,
+            cleanRetry: true,
+          },
+          { status: 502 }
+        );
+      }
     }
 
     const flags = await expenseFlags(expense, receipt ? 1 : 0);
