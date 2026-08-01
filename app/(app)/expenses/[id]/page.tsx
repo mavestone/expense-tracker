@@ -268,6 +268,12 @@ export default function ExpenseDetailPage() {
             {current.mime.startsWith("image/") ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img className="receipt-thumb" src={`/api/receipts/${current.id}/download`} alt={`Receipt: ${current.originalFilename}`} />
+            ) : current.mime === "application/pdf" ? (
+              <iframe
+                className="receipt-pdf"
+                src={`/api/receipts/${current.id}/download#toolbar=0&navpanes=0`}
+                title={`Receipt: ${current.originalFilename}`}
+              />
             ) : (
               <div className="alert info" style={{ margin: 0 }}>📄 {current.originalFilename} ({(current.sizeBytes / 1024).toFixed(0)} KB)</div>
             )}
