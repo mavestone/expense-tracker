@@ -82,6 +82,22 @@ const TOOLS = [
     },
   },
   {
+    name: "find_income",
+    description:
+      "Search existing INCOME records — use this BEFORE adding income to avoid duplicates (same client + date + amount), and to find an income id for attach_invoice or mark_income_paid. Pass outstanding:true to list unpaid invoices when reconciling a bank statement.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Client name, description or invoice ref text" },
+        date: { type: "string", description: "Exact dateEarned filter, YYYY-MM-DD" },
+        fy: { type: "string", description: "Financial year label, e.g. \"2025-26\"" },
+        status: { type: "string", description: "Comma list: active,void (default both)" },
+        outstanding: { type: "boolean", description: "Only invoices with no payment date" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "add_expense",
     description:
       "Create an expense record. The app resolves the historical FX rate for dateIncurred (RBA, ECB fallback) and freezes it, applies GST defaults, derives the financial year, and writes an audit entry. Never convert currency yourself. Optionally attach the receipt in the same call via receiptPath.",
@@ -185,6 +201,16 @@ async function runTool(name, args = {}) {
       if (args.date) p.set("date", args.date);
       if (args.status) p.set("status", args.status);
       return callApi(`/api/agent/expenses?${p}`);
+    }
+
+    case "find_income": {
+      const p = new URLSearchParams();
+      if (args.query) p.set("q", args.query);
+      if (args.date) p.set("date", args.date);
+      if (args.fy) p.set("fy", args.fy);
+      if (args.status) p.set("status", args.status);
+      if (args.outstanding) p.set("outstanding", "true");
+      return callApi(`/api/agent/income?${p}`);
     }
 
     case "add_expense": {

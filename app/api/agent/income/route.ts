@@ -1,6 +1,6 @@
 import { api, json } from "@/lib/api";
 import { checkAgentAuth, agentApiEnabled } from "@/lib/agent-auth";
-import { createIncome, isIncomeGst, voidIncome, type IncomeInput } from "@/lib/income";
+import { createIncome, isIncomeGst, listIncome, voidIncome, type IncomeInput } from "@/lib/income";
 import { addIncomeDocument } from "@/lib/income-documents";
 import { parseMoneyToCents } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
@@ -25,6 +25,55 @@ type Payload = {
   /** Optional invoice document attached in the same call. */
   invoice?: { filename: string; mime: string; base64: string };
 };
+
+/**
+ * Minimal search for automation: find income records (dedupe checks, locating
+ * a record id to attach an invoice to or mark paid). Read-only.
+ */
+export const GET = api(
+  async (req) => {
+    if (!agentApiEnabled()) return json({ error: "Agent API not configured (set AGENT_API_KEY)." }, { status: 503 });
+    if (!checkAgentAuth(req)) return json({ error: "Invalid agent API key." }, { status: 401 });
+
+    const url = new URL(req.url);
+    const q = url.searchParams.get("q") || undefined;
+    const fy = url.searchParams.get("fy") || undefined;
+    const statusParam = url.searchParams.get("status");
+    const status = statusParam
+      ? (statusParam.split(",") as ("active" | "void")[])
+      : (["active", "void"] as ("active" | "void")[]);
+    const outstandingOnly = url.searchParams.get("outstanding") === "true";
+
+    const { income, totals, outstanding } = await listIncome({ search: q, fy, status, outstandingOnly, limit: 25 });
+    const origin = url.origin;
+    let rows = income.map((i) => ({
+      id: i.id,
+      url: `${origin}/income/${i.id}`,
+      dateEarned: i.dateEarned,
+      datePaid: i.datePaid ?? "outstanding",
+      client: i.clientName,
+      invoiceRef: i.invoiceRef,
+      description: i.description,
+      originalAmount: `${i.originalCurrency} ${(i.originalAmountCents / 100).toFixed(2)}`,
+      audAmount: (i.audAmountCents / 100).toFixed(2),
+      gstTreatment: i.gstTreatment,
+      status: i.status,
+      financialYear: i.financialYear,
+    }));
+    const date = url.searchParams.get("date");
+    if (date) rows = rows.filter((r) => r.dateEarned === date);
+    return json({
+      income: rows,
+      totals: {
+        count: totals.count,
+        audTotal: (totals.audTotal / 100).toFixed(2),
+        gstOnSalesAud: (totals.gstTotal / 100).toFixed(2),
+      },
+      outstanding: { count: outstanding.count, audTotal: (outstanding.audTotal / 100).toFixed(2) },
+    });
+  },
+  { auth: false }
+);
 
 /** Log business income (invoiced work or other) from an AI assistant. */
 export const POST = api(
