@@ -9,6 +9,7 @@ export type SettingsDto = {
   gst_receipt_flag_cents: number;
   subscription_stale_days: number;
   ocr_enabled: boolean;
+  gst_registered: boolean;
 };
 export type SupplierSuggestion = { name: string; abn: string | null; categoryId: string | null; paymentMethod: string | null };
 

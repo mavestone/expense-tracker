@@ -29,6 +29,7 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
     thresholdRows,
     fxRows,
     importBatchRows,
+    incomeRows,
   ] = await Promise.all([
     opts.fy
       ? d.select().from(schema.expenses).where(eq(schema.expenses.financialYear, opts.fy))
@@ -42,6 +43,9 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
     d.select().from(schema.fyThresholds),
     d.select().from(schema.fxRates),
     d.select().from(schema.importBatches),
+    opts.fy
+      ? d.select().from(schema.income).where(eq(schema.income.financialYear, opts.fy))
+      : d.select().from(schema.income),
   ]);
 
   const expenseIds = new Set(expensesRows.map((e) => e.id));
@@ -52,6 +56,7 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
     schemaVersion: BACKUP_SCHEMA_VERSION,
     scope: opts.fy ?? "all",
     expenses: expensesRows,
+    income: incomeRows,
     receipts,
     subscriptions: subscriptionRows,
     categories: categoryRows,
@@ -69,6 +74,7 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
     scope: data.scope,
     counts: {
       expenses: expensesRows.length,
+      income: incomeRows.length,
       receipts: receipts.length,
       subscriptions: subscriptionRows.length,
       auditLog: auditRows.length,
@@ -94,7 +100,7 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
       `Exported: ${data.exportedAt}`,
       `Scope: ${data.scope === "all" ? "all financial years" : "FY " + data.scope}`,
       "",
-      "data.json      — every record (expenses, receipts metadata, subscriptions, audit log, settings).",
+      "data.json      — every record (expenses, income, receipts metadata, subscriptions, audit log, settings).",
       "manifest.json  — table counts and the SHA-256 of every receipt file for integrity checks.",
       "receipts/      — every receipt file version, named by content hash.",
       "",

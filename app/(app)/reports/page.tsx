@@ -8,7 +8,26 @@ import { formatAUD, bpToPercentString } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 import type { MetaDto } from "@/lib/types";
 
-type Tab = "category" | "gst" | "depreciation" | "missing";
+type Tab = "profit" | "category" | "gst" | "depreciation" | "missing";
+
+type ProfitReport = {
+  fy: string;
+  income: {
+    byType: { type: string; count: number; audCents: number; gstCents: number }[];
+    byClient: { client: string; count: number; audCents: number }[];
+    totals: { count: number; audCents: number; gstCents: number; outstandingCents: number; outstandingCount: number };
+  };
+  expenses: { count: number; audCents: number; deductibleCents: number; claimableGstCents: number };
+  profit: { incomeAudCents: number; incomeExGstCents: number; deductibleExpenseCents: number; claimableGstCents: number; netCents: number };
+};
+
+const INCOME_TYPE_LABELS: Record<string, string> = {
+  client_work: "Client work",
+  licensing: "Licensing / royalties",
+  grant: "Grant / rebate",
+  interest: "Interest",
+  other: "Other income",
+};
 
 type CategoryReport = {
   fy: string;
@@ -25,10 +44,13 @@ type GstReport = {
     g11Cents: number;
     oneBCents: number;
     excludedGstCents: number;
+    g1Cents: number;
+    oneACents: number;
+    netGstCents: number;
     byTreatment: Record<string, { count: number; audCents: number; businessAudCents: number }>;
     flaggedNoInvoice: { id: string; date: string; supplier: string; audCents: number; claimableGstCents: number }[];
   }[];
-  totals: { g10Cents: number; g11Cents: number; oneBCents: number; excludedGstCents: number; flaggedCount: number };
+  totals: { g10Cents: number; g11Cents: number; oneBCents: number; excludedGstCents: number; flaggedCount: number; g1Cents: number; oneACents: number; netGstCents: number };
   thresholdCents: number;
 };
 
@@ -48,7 +70,8 @@ function ReportsInner() {
   const params = useSearchParams();
   const [meta, setMeta] = useState<MetaDto | null>(null);
   const [fy, setFy] = useState("");
-  const [tab, setTab] = useState<Tab>((params.get("tab") as Tab) || "category");
+  const [tab, setTab] = useState<Tab>((params.get("tab") as Tab) || "profit");
+  const [profit, setProfit] = useState<ProfitReport | null>(null);
   const [cat, setCat] = useState<CategoryReport | null>(null);
   const [gst, setGst] = useState<GstReport | null>(null);
   const [dep, setDep] = useState<DepreciationReport | null>(null);
@@ -65,13 +88,14 @@ function ReportsInner() {
   useEffect(() => {
     if (!fy) return;
     setError(null);
-    setCat(null); setGst(null); setDep(null); setMissing(null);
+    setCat(null); setGst(null); setDep(null); setMissing(null); setProfit(null);
     Promise.all([
       apiGet<CategoryReport>(`/api/reports/category?fy=${fy}`),
       apiGet<GstReport>(`/api/reports/gst?fy=${fy}`),
       apiGet<DepreciationReport>(`/api/reports/depreciation?fy=${fy}`),
       apiGet<MissingReport>(`/api/reports/missing-receipts?fy=${fy}`),
-    ]).then(([c, g, d, m]) => { setCat(c); setGst(g); setDep(d); setMissing(m); })
+      apiGet<ProfitReport>(`/api/reports/income?fy=${fy}`),
+    ]).then(([c, g, d, m, p]) => { setCat(c); setGst(g); setDep(d); setMissing(m); setProfit(p); })
       .catch((e) => setError(e.message));
   }, [fy]);
 
@@ -79,6 +103,7 @@ function ReportsInner() {
   if (!meta || !fy) return <div className="empty"><span className="spin" /> Loading…</div>;
 
   const TABS: { id: Tab; label: string }[] = [
+    { id: "profit", label: "Income & profit" },
     { id: "category", label: "By category" },
     { id: "gst", label: "GST / BAS" },
     { id: "depreciation", label: "Depreciation" },
@@ -107,14 +132,100 @@ function ReportsInner() {
       <div className="card mb2">
         <h2>Exports</h2>
         <div className="btnrow">
-          <a className="btn ghost small" href={`/api/export/csv?fy=${fy}`}>⬇ CSV — FY {fy} (for Xero / MYOB / accountant)</a>
-          <a className="btn ghost small" href={`/api/export/csv?fy=all`}>⬇ CSV — all years</a>
+          <a className="btn ghost small" href={`/api/export/csv?fy=${fy}`}>⬇ Expenses CSV — FY {fy}</a>
+          <a className="btn ghost small" href={`/api/export/income-csv?fy=${fy}`}>⬇ Income CSV — FY {fy}</a>
+          <a className="btn ghost small" href={`/api/export/csv?fy=all`}>⬇ Expenses — all years</a>
           <a className="btn ghost small" href={`/api/export/backup?fy=all`}>⬇ Full backup (zip: JSON + all receipts)</a>
         </div>
         <p className="small muted mt1" style={{ marginBottom: 0 }}>
-          CSV: one row per expense, all fields, AUD amounts as plain decimals, dates DD/MM/YYYY. Backup: everything, restorable and readable without this app — keep an offline copy somewhere safe.
+          CSVs: one row per record, all fields, AUD amounts as plain decimals, dates DD/MM/YYYY. Backup: everything including income, restorable and readable without this app — keep an offline copy somewhere safe.
         </p>
       </div>
+
+      {tab === "profit" && (
+        <div>
+          {!profit ? <div className="card"><div className="empty"><span className="spin" /></div></div> : (
+            <>
+              <div className="stats mb2">
+                <div className="stat">
+                  <div className="label">Income</div>
+                  <div className="value">{formatAUD(profit.profit.incomeAudCents)}</div>
+                  <div className="sub">{profit.income.totals.count} record{profit.income.totals.count === 1 ? "" : "s"}</div>
+                </div>
+                <div className="stat">
+                  <div className="label">Deductible expenses</div>
+                  <div className="value">{formatAUD(profit.profit.deductibleExpenseCents)}</div>
+                  <div className="sub">{profit.expenses.count} expense{profit.expenses.count === 1 ? "" : "s"}</div>
+                </div>
+                <div className="stat">
+                  <div className="label">Net (indicative)</div>
+                  <div className="value" style={{ color: profit.profit.netCents >= 0 ? "var(--ok)" : "var(--danger)" }}>
+                    {formatAUD(profit.profit.netCents)}
+                  </div>
+                  <div className="sub">income − expenses, both ex-GST</div>
+                </div>
+                <div className="stat">
+                  <div className="label">Awaiting payment</div>
+                  <div className="value">{formatAUD(profit.income.totals.outstandingCents)}</div>
+                  <div className="sub">{profit.income.totals.outstandingCount} unpaid</div>
+                </div>
+              </div>
+
+              <div className="card">
+                <h2>How the net figure is built — FY {fy}</h2>
+                <div className="tablewrap">
+                  <table className="data">
+                    <tbody>
+                      <tr><td>Income received / invoiced</td><td className="r">{formatAUD(profit.profit.incomeAudCents)}</td></tr>
+                      <tr><td>less GST collected on sales (owed to the ATO)</td><td className="r">−{formatAUD(profit.income.totals.gstCents)}</td></tr>
+                      <tr><td><b>Income excluding GST</b></td><td className="r"><b>{formatAUD(profit.profit.incomeExGstCents)}</b></td></tr>
+                      <tr><td>less deductible expenses (business-use portion)</td><td className="r">−{formatAUD(profit.profit.deductibleExpenseCents)}</td></tr>
+                      <tr><td>add back GST credits claimable on those purchases</td><td className="r">+{formatAUD(profit.profit.claimableGstCents)}</td></tr>
+                    </tbody>
+                    <tfoot>
+                      <tr><td>Indicative net</td><td className="r">{formatAUD(profit.profit.netCents)}</td></tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <p className="small muted">
+                  Indicative only — a working figure, not a tax return. It excludes depreciation on capital assets, anything paid outside this tracker, and any adjustments your accountant makes.
+                </p>
+              </div>
+
+              <div className="card">
+                <h2>Income by client</h2>
+                <div className="tablewrap">
+                  <table className="data">
+                    <thead><tr><th>Client</th><th className="r">Records</th><th className="r">Total AUD</th></tr></thead>
+                    <tbody>
+                      {profit.income.byClient.map((c) => (
+                        <tr key={c.client}><td>{c.client}</td><td className="r">{c.count}</td><td className="r">{formatAUD(c.audCents)}</td></tr>
+                      ))}
+                      {profit.income.byClient.length === 0 && <tr><td colSpan={3} className="empty">No income recorded for FY {fy}.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {profit.income.byType.length > 0 && (
+                <div className="card">
+                  <h2>Income by type</h2>
+                  <div className="tablewrap">
+                    <table className="data">
+                      <thead><tr><th>Type</th><th className="r">Records</th><th className="r">Total AUD</th></tr></thead>
+                      <tbody>
+                        {profit.income.byType.map((t) => (
+                          <tr key={t.type}><td>{INCOME_TYPE_LABELS[t.type] ?? t.type}</td><td className="r">{t.count}</td><td className="r">{formatAUD(t.audCents)}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {tab === "category" && (
         <div className="card">
@@ -165,20 +276,28 @@ function ReportsInner() {
                     <thead>
                       <tr>
                         <th>Quarter</th>
-                        <th className="r">G10 · capital purchases</th>
-                        <th className="r">G11 · non-capital purchases</th>
+                        <th className="r">G1 · total sales</th>
+                        <th className="r">1A · GST on sales</th>
+                        <th className="r">G10 · capital</th>
+                        <th className="r">G11 · non-capital</th>
                         <th className="r">1B · GST credits</th>
+                        <th className="r">Net GST</th>
                       </tr>
                     </thead>
                     <tbody>
                       {gst.quarters.map((q) => (
                         <tr key={q.quarter}>
                           <td>{q.quarter} <span className="muted">{q.label}</span></td>
+                          <td className="r">{formatAUD(q.g1Cents)}</td>
+                          <td className="r">{formatAUD(q.oneACents)}</td>
                           <td className="r">{formatAUD(q.g10Cents)}</td>
                           <td className="r">{formatAUD(q.g11Cents)}</td>
                           <td className="r">
                             {formatAUD(q.oneBCents)}
                             {q.excludedGstCents > 0 && <div className="small" style={{ color: "var(--danger)" }}>+{formatAUD(q.excludedGstCents)} excluded (no tax invoice)</div>}
+                          </td>
+                          <td className="r" style={{ color: q.netGstCents > 0 ? "var(--danger)" : "var(--ok)" }}>
+                            {formatAUD(q.netGstCents)}
                           </td>
                         </tr>
                       ))}
@@ -186,13 +305,19 @@ function ReportsInner() {
                     <tfoot>
                       <tr>
                         <td>FY total</td>
+                        <td className="r">{formatAUD(gst.totals.g1Cents)}</td>
+                        <td className="r">{formatAUD(gst.totals.oneACents)}</td>
                         <td className="r">{formatAUD(gst.totals.g10Cents)}</td>
                         <td className="r">{formatAUD(gst.totals.g11Cents)}</td>
                         <td className="r">{formatAUD(gst.totals.oneBCents)}</td>
+                        <td className="r">{formatAUD(gst.totals.netGstCents)}</td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
+                <p className="small muted" style={{ marginBottom: 4 }}>
+                  <b>Net GST</b> = 1A (collected on sales) − 1B (credits on purchases). Positive means payable to the ATO; negative means refundable.
+                </p>
                 <p className="small muted">
                   Methodology: amounts are GST-inclusive AUD, business-use portion only. G10 = capital, G11 = non-capital (all GST treatments, per the ATO calculation worksheet — see the breakdown below for your accountant to adjust, e.g. G14 for no-GST purchases). 1B = business-use portion of GST on records marked “GST included”, excluding records over {formatAUD(gst.thresholdCents)} with no tax invoice attached.
                 </p>

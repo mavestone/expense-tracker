@@ -10,7 +10,8 @@ import type { ExpenseDto, MetaDto } from "@/lib/types";
 type Dashboard = {
   fy: string;
   totals: { count: number; audCents: number; deductibleCents: number; claimableGstCents: number; capitalCount: number; capitalCents: number };
-  alerts: { pendingDrafts: number; pendingFx: number; missingReceiptsImportant: number; missingReceiptsTotal: number; staleSubscriptions: number; gstInvoiceFlags: number };
+  income: { count: number; audCents: number; gstCents: number; netCents: number; outstandingCount: number; outstandingCents: number };
+  alerts: { pendingDrafts: number; pendingFx: number; missingReceiptsImportant: number; missingReceiptsTotal: number; staleSubscriptions: number; gstInvoiceFlags: number; unpaidInvoices: number };
   recent: ExpenseDto[];
 };
 
@@ -33,6 +34,7 @@ export default function HomePage() {
 
   const a = data.alerts;
   const alerts: { text: string; href: string; kind: "warn" | "info" | "danger" }[] = [];
+  if (a.unpaidInvoices > 0) alerts.push({ text: `${a.unpaidInvoices} invoice${a.unpaidInvoices > 1 ? "s" : ""} awaiting payment${data.income?.outstandingCents ? ` — ${formatAUD(data.income.outstandingCents)}` : ""}`, href: "/income?outstanding=1", kind: "info" });
   if (a.pendingDrafts > 0) alerts.push({ text: `${a.pendingDrafts} subscription renewal${a.pendingDrafts > 1 ? "s" : ""} waiting for confirmation`, href: "/expenses?status=draft", kind: "info" });
   if (a.gstInvoiceFlags > 0) alerts.push({ text: `${a.gstInvoiceFlags} GST claim${a.gstInvoiceFlags > 1 ? "s" : ""} missing a tax invoice (credit can't be claimed)`, href: "/reports?tab=missing", kind: "danger" });
   if (a.pendingFx > 0) alerts.push({ text: `${a.pendingFx} record${a.pendingFx > 1 ? "s" : ""} with FX rate pending`, href: "/expenses?pendingFx=1", kind: "warn" });
@@ -52,24 +54,29 @@ export default function HomePage() {
 
       <div className="stats">
         <div className="stat">
-          <div className="label">Spend (FY {data.fy})</div>
-          <div className="value">{formatAUD(data.totals.audCents)}</div>
-          <div className="sub">{data.totals.count} expenses</div>
+          <div className="label">Income (FY {data.fy})</div>
+          <div className="value">{formatAUD(data.income?.audCents ?? 0)}</div>
+          <div className="sub">
+            {data.income?.count ?? 0} record{(data.income?.count ?? 0) === 1 ? "" : "s"}
+            {(data.income?.outstandingCents ?? 0) > 0 && ` · ${formatAUD(data.income.outstandingCents)} unpaid`}
+          </div>
         </div>
         <div className="stat">
-          <div className="label">Deductible</div>
+          <div className="label">Deductible spend</div>
           <div className="value">{formatAUD(data.totals.deductibleCents)}</div>
-          <div className="sub">business-use portion</div>
+          <div className="sub">{data.totals.count} expenses · {formatAUD(data.totals.audCents)} total</div>
+        </div>
+        <div className="stat">
+          <div className="label">Net (indicative)</div>
+          <div className="value" style={{ color: (data.income?.netCents ?? 0) >= 0 ? "var(--ok)" : "var(--danger)" }}>
+            {formatAUD(data.income?.netCents ?? 0)}
+          </div>
+          <div className="sub">income − expenses, ex-GST</div>
         </div>
         <div className="stat">
           <div className="label">GST credits</div>
           <div className="value">{formatAUD(data.totals.claimableGstCents)}</div>
-          <div className="sub">claimable (1B)</div>
-        </div>
-        <div className="stat">
-          <div className="label">Capital assets</div>
-          <div className="value">{formatAUD(data.totals.capitalCents)}</div>
-          <div className="sub">{data.totals.capitalCount} asset{data.totals.capitalCount === 1 ? "" : "s"} this FY</div>
+          <div className="sub">claimable (1B){data.totals.capitalCount > 0 ? ` · ${data.totals.capitalCount} capital asset${data.totals.capitalCount === 1 ? "" : "s"}` : ""}</div>
         </div>
       </div>
 

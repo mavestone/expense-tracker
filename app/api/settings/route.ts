@@ -22,6 +22,7 @@ const EDITABLE_SETTINGS = new Set([
   "gst_receipt_flag_cents",
   "subscription_stale_days",
   "ocr_enabled",
+  "gst_registered",
 ]);
 
 export const PATCH = api(async (req) => {

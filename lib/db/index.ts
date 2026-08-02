@@ -87,6 +87,9 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   gst_receipt_flag_cents: 8250,
   subscription_stale_days: 60,
   ocr_enabled: true,
+  // Whether the business is registered for GST. Drives GST on sales (1A) and
+  // whether GST credits (1B) can be claimed at all. Confirm with your accountant.
+  gst_registered: false,
 };
 
 async function seedIfEmpty(d: Db) {

@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [gstThresh, setGstThresh] = useState("");
   const [staleDays, setStaleDays] = useState("");
   const [ocrEnabled, setOcrEnabled] = useState(true);
+  const [gstRegistered, setGstRegistered] = useState(false);
   const [thresholdEdits, setThresholdEdits] = useState<Record<string, string>>({});
   const [newFy, setNewFy] = useState("");
   const [newFyAmount, setNewFyAmount] = useState("");
@@ -43,6 +44,7 @@ export default function SettingsPage() {
       setGstThresh(centsToDecimalString(s.settings.gst_receipt_flag_cents));
       setStaleDays(String(s.settings.subscription_stale_days));
       setOcrEnabled(s.settings.ocr_enabled);
+      setGstRegistered(!!s.settings.gst_registered);
       const edits: Record<string, string> = {};
       for (const t of s.thresholds) edits[t.fyLabel] = t.instantWriteoffCents != null ? centsToDecimalString(t.instantWriteoffCents) : "";
       setThresholdEdits(edits);
@@ -75,6 +77,7 @@ export default function SettingsPage() {
         gst_receipt_flag_cents: g,
         subscription_stale_days: sd,
         ocr_enabled: ocrEnabled,
+        gst_registered: gstRegistered,
       },
     });
     flash("Settings saved");
@@ -172,6 +175,15 @@ export default function SettingsPage() {
         <label className="checkline">
           <input type="checkbox" checked={ocrEnabled} onChange={(e) => setOcrEnabled(e.target.checked)} />
           <span>Enable receipt scanning (OCR runs on your device; only ever suggests values)</span>
+        </label>
+        <label className="checkline">
+          <input type="checkbox" checked={gstRegistered} onChange={(e) => setGstRegistered(e.target.checked)} />
+          <span>
+            <b>Registered for GST</b> — enables GST on sales (BAS 1A) on income records
+            <div className="hint">
+              Confirm with your accountant. Registration is what allows GST credits on purchases (1B) to be claimed at all — if you are not registered, the GST shown on supplier invoices is simply part of the cost.
+            </div>
+          </span>
         </label>
         <div className="btnrow mt1"><button className="btn">Save general settings</button></div>
       </form>

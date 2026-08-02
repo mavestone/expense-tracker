@@ -113,6 +113,60 @@ export const receipts = sqliteTable(
   (t) => [index("idx_receipts_expense").on(t.expenseId)]
 );
 
+/**
+ * Income — deliberately a separate ledger from expenses. Covers invoiced
+ * client work and any other money the business earns. Same integrity rules:
+ * never hard-deleted, FX frozen on the record, full audit history.
+ */
+export const income = sqliteTable(
+  "income",
+  {
+    id: text("id").primaryKey(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+
+    // Date the income was earned/invoiced (the record's tax point).
+    dateEarned: text("date_earned").notNull(),
+    // Set when the money actually landed; null means still outstanding.
+    datePaid: text("date_paid"),
+
+    clientName: text("client_name").notNull(),
+    clientAbn: text("client_abn"),
+    invoiceRef: text("invoice_ref"),
+    description: text("description").notNull(),
+    incomeType: text("income_type").notNull().default("client_work"),
+
+    originalAmountCents: integer("original_amount_cents").notNull(),
+    originalCurrency: text("original_currency").notNull(),
+
+    fxRate: text("fx_rate"),
+    fxRateSource: text("fx_rate_source"),
+    fxRateDate: text("fx_rate_date"),
+    fxStatus: text("fx_status").notNull().default("na"), // na | auto | manual | pending
+    fxOverrideNote: text("fx_override_note"),
+
+    audAmountCents: integer("aud_amount_cents").notNull(),
+
+    // GST on sales: gst (1/11 included) | gst_free | no_gst (not registered / export)
+    gstTreatment: text("gst_treatment").notNull().default("no_gst"),
+    gstAmountCents: integer("gst_amount_cents").notNull().default(0),
+
+    paymentAccount: text("payment_account"),
+    notes: text("notes"),
+    financialYear: text("financial_year").notNull(),
+
+    status: text("status").notNull().default("active"), // active | void
+    voidReason: text("void_reason"),
+    voidedAt: text("voided_at"),
+    source: text("source").notNull().default("manual"), // manual | agent | import
+  },
+  (t) => [
+    index("idx_income_fy").on(t.financialYear),
+    index("idx_income_date").on(t.dateEarned),
+    index("idx_income_status").on(t.status),
+  ]
+);
+
 export const auditLog = sqliteTable(
   "audit_log",
   {

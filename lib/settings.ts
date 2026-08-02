@@ -7,6 +7,7 @@ export type AppSettings = {
   gst_receipt_flag_cents: number;
   subscription_stale_days: number;
   ocr_enabled: boolean;
+  gst_registered: boolean;
 };
 
 export async function getSettings(): Promise<AppSettings> {

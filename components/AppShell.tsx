@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 const NAV = [
   { href: "/", label: "Home" },
   { href: "/expenses", label: "Expenses" },
+  { href: "/income", label: "Income" },
   { href: "/subscriptions", label: "Subscriptions" },
   { href: "/reports", label: "Reports" },
   { href: "/import", label: "Import" },
@@ -27,6 +28,9 @@ const ICONS: Record<string, React.ReactNode> = {
   Subscriptions: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 9a8 8 0 0 1 14.5-3M20 15a8 8 0 0 1-14.5 3" /><path d="M18 2v4h-4M6 22v-4h4" /></svg>
   ),
+  Income: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 20V4" /><path d="M6 10l6-6 6 6" /><path d="M4 21h16" /></svg>
+  ),
   More: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
   ),
@@ -41,7 +45,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }
 
-  const moreActive = ["/reports", "/import", "/audit", "/settings"].some((h) => pathname.startsWith(h));
+  const moreActive = ["/reports", "/import", "/audit", "/settings", "/subscriptions"].some((h) => pathname.startsWith(h));
 
   return (
     <div className="shell">
@@ -81,9 +85,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Link href="/expenses/new" className="add" aria-label="Add expense">
           <span className="plus">+</span>
         </Link>
-        <Link href="/subscriptions" className={pathname.startsWith("/subscriptions") ? "active" : ""}>
-          {ICONS.Subscriptions}
-          Subs
+        <Link href="/income" className={pathname.startsWith("/income") ? "active" : ""}>
+          {ICONS.Income}
+          Income
         </Link>
         <Link href="/reports" className={moreActive ? "active" : ""}>
           {ICONS.More}
