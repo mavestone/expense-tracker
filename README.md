@@ -127,6 +127,17 @@ so an AI assistant (e.g. a Hyperagent skill) can post analysed invoices for you:
 Records created this way are marked **source: agent** with an audit note, and follow
 every integrity rule manual entries do. The API never deletes or edits anything.
 
+## Using it with Claude
+
+`mcp/server.mjs` is a zero-dependency **MCP server** that exposes the agent API as
+tools for Claude Desktop or Claude Code — drop an invoice into a chat and have it
+read, categorised and filed. Setup: **[docs/CLAUDE-SETUP.md](docs/CLAUDE-SETUP.md)**.
+The assistant's operating brief (GST rules, FX policy, bank-statement gotchas) lives
+in **[docs/EXPENSE-CLERK.md](docs/EXPENSE-CLERK.md)** — paste it into a Claude Project.
+
+The app is fully usable without any AI: every record can be entered by hand, and the
+FX, GST, BAS and depreciation logic is identical either way.
+
 ## Data & compliance notes (for you and your accountant)
 
 - Amounts are stored as **integer cents**; the CSV/backup exports render plain decimals.
