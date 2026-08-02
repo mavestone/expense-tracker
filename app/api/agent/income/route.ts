@@ -1,8 +1,10 @@
 import { api, json } from "@/lib/api";
 import { checkAgentAuth, agentApiEnabled } from "@/lib/agent-auth";
-import { createIncome, isIncomeGst, type IncomeInput } from "@/lib/income";
+import { createIncome, isIncomeGst, voidIncome, type IncomeInput } from "@/lib/income";
+import { addIncomeDocument } from "@/lib/income-documents";
 import { parseMoneyToCents } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
+import { ALLOWED_RECEIPT_MIMES } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -20,6 +22,8 @@ type Payload = {
   gstTreatment?: string;
   paymentAccount?: string | null;
   notes?: string | null;
+  /** Optional invoice document attached in the same call. */
+  invoice?: { filename: string; mime: string; base64: string };
 };
 
 /** Log business income (invoiced work or other) from an AI assistant. */
@@ -60,12 +64,44 @@ export const POST = api(
       notes: p.notes ?? null,
     };
 
+    // Validate any attached invoice before creating the record.
+    let docBuf: Buffer | null = null;
+    if (p.invoice) {
+      if (!p.invoice.base64 || p.invoice.base64.length > 8 * 1024 * 1024)
+        return json({ error: "Invoice document too large (max ~6MB)." }, { status: 413 });
+      if (!ALLOWED_RECEIPT_MIMES.has(p.invoice.mime))
+        return json({ error: `Unsupported document type ${p.invoice.mime}. Use JPEG, PNG, WebP, HEIC or PDF.` }, { status: 400 });
+      try {
+        docBuf = Buffer.from(p.invoice.base64, "base64");
+      } catch {
+        return json({ error: "Invoice base64 could not be decoded." }, { status: 400 });
+      }
+      if (docBuf.length === 0) return json({ error: "Invoice document is empty." }, { status: 400 });
+    }
+
     const rec = await createIncome(input, { source: "agent", resolveFx: true, auditNote: "Created via Hyperagent agent API" });
+
+    let attached = false;
+    if (docBuf && p.invoice) {
+      try {
+        await addIncomeDocument(rec.id, { buffer: docBuf, filename: p.invoice.filename || "invoice", mime: p.invoice.mime });
+        attached = true;
+      } catch (e) {
+        // Keep ingestion atomic: void the record so a retry can't double-post.
+        await voidIncome(rec.id, "Invoice storage failed during agent ingestion — voided for clean retry").catch(() => {});
+        return json(
+          { error: `Invoice storage failed: ${(e as Error).message} — the income record was voided so you can safely retry.`, cleanRetry: true },
+          { status: 502 }
+        );
+      }
+    }
+
     const origin = new URL(req.url).origin;
     return json(
       {
         id: rec.id,
-        url: `${origin}/income`,
+        url: `${origin}/income/${rec.id}`,
+        invoiceAttached: attached,
         summary: {
           date: rec.dateEarned,
           paid: rec.datePaid ?? "outstanding",

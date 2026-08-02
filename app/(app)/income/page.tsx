@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { apiGet, apiSend, ApiError } from "@/lib/client";
+import Link from "next/link";
+import { apiGet, apiSend, apiUpload, ApiError } from "@/lib/client";
+import ReceiptUploader, { type StagedReceipt } from "@/components/ReceiptUploader";
 import { formatAUD, formatCurrency, parseMoneyToCents, centsToDecimalString } from "@/lib/money";
 import { formatDateAU, financialYear } from "@/lib/fy";
 import { COMMON_CURRENCIES, type MetaDto } from "@/lib/types";
@@ -79,6 +81,7 @@ export default function IncomePage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [staged, setStaged] = useState<StagedReceipt | null>(null);
 
   const load = useCallback(async () => {
     const p = new URLSearchParams();
@@ -108,6 +111,7 @@ export default function IncomePage() {
   function openNew() {
     setForm({ ...EMPTY, dateEarned: meta?.today ?? "", gstTreatment: meta?.settings.gst_registered ? "gst" : "no_gst" });
     setEditingId(null);
+    setStaged(null);
     setFormOpen(true);
     setError(null);
   }
@@ -128,6 +132,7 @@ export default function IncomePage() {
       notes: r.notes ?? "",
     });
     setEditingId(r.id);
+    setStaged(null);
     setFormOpen(true);
     setError(null);
   }
@@ -153,9 +158,18 @@ export default function IncomePage() {
       notes: form.notes || null,
     };
     try {
-      if (editingId) await apiSend(`/api/income/${editingId}`, "PATCH", { input });
-      else await apiSend("/api/income", "POST", { input });
+      let recId = editingId;
+      if (editingId) {
+        await apiSend(`/api/income/${editingId}`, "PATCH", { input });
+      } else {
+        const res = await apiSend<{ income: { id: string } }>("/api/income", "POST", { input });
+        recId = res.income.id;
+      }
+      if (staged && recId) {
+        await apiUpload(`/api/income/${recId}/documents`, staged.file, staged.filename);
+      }
       setFormOpen(false);
+      setStaged(null);
       await load();
       flash(editingId ? "Income updated" : "Income recorded");
     } catch (err) {
@@ -313,6 +327,11 @@ export default function IncomePage() {
               Foreign currency — the AUD value will use the published rate for {form.dateEarned ? formatDateAU(form.dateEarned) : "the income date"} and be frozen on the record.
             </div>
           )}
+          <div className="field">
+            <label>Invoice document <span className="muted">(optional — PDF or image)</span></label>
+            <ReceiptUploader staged={staged} onStage={setStaged} />
+            {editingId && <span className="hint">Attaching here adds a new version; existing versions are kept.</span>}
+          </div>
           <div className="btnrow">
             <button className="btn" disabled={busy}>{busy ? "Saving…" : editingId ? "Save changes" : "Record income"}</button>
             <button type="button" className="btn ghost" onClick={() => setFormOpen(false)}>Cancel</button>
@@ -325,16 +344,16 @@ export default function IncomePage() {
         <div className="explist">
           {data.income.map((r) => (
             <div key={r.id} className="exprow" style={{ cursor: "default" }}>
-              <div className="l1">
+              <Link href={`/income/${r.id}`} className="l1" style={{ color: "inherit" }}>
                 <span className="supplier">{r.clientName}</span>
                 <span className="desc">{r.description}</span>
-              </div>
-              <div className="amount">
+              </Link>
+              <Link href={`/income/${r.id}`} className="amount" style={{ color: "inherit", textDecoration: "none" }}>
                 {formatAUD(r.audAmountCents)}
                 {r.originalCurrency !== "AUD" && (
                   <div className="muted small" style={{ fontWeight: 400 }}>{formatCurrency(r.originalAmountCents, r.originalCurrency)}</div>
                 )}
-              </div>
+              </Link>
               <div className="meta">
                 <span>{formatDateAU(r.dateEarned)}</span>
                 {r.invoiceRef && <span>· {r.invoiceRef}</span>}
@@ -347,9 +366,9 @@ export default function IncomePage() {
                 {r.fxStatus === "pending" && <span className="badge warn">FX pending</span>}
                 {r.source === "agent" && <span className="badge neutral">via agent</span>}
                 <span style={{ flex: 1 }} />
+                <Link href={`/income/${r.id}`} className="btn ghost small">View invoice</Link>
                 {!r.datePaid && <button className="btn ghost small" onClick={() => markPaid(r)}>Mark paid</button>}
                 <button className="btn ghost small" onClick={() => openEdit(r)}>Edit</button>
-                <button className="btn ghost small" onClick={() => doVoid(r)}>Void</button>
               </div>
             </div>
           ))}

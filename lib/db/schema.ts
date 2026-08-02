@@ -167,6 +167,30 @@ export const income = sqliteTable(
   ]
 );
 
+/**
+ * Invoice documents attached to income records. Same immutability contract as
+ * expense receipts: content-addressed, never overwritten, replacement creates
+ * a new version and the old one is kept forever.
+ */
+export const incomeDocuments = sqliteTable(
+  "income_documents",
+  {
+    id: text("id").primaryKey(),
+    incomeId: text("income_id").notNull().references(() => income.id),
+    version: integer("version").notNull(),
+    originalFilename: text("original_filename").notNull(),
+    mime: text("mime").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    storageDriver: text("storage_driver").notNull(),
+    storageKey: text("storage_key").notNull(),
+    uploadedAt: text("uploaded_at").notNull(),
+    isCurrent: integer("is_current", { mode: "boolean" }).notNull().default(true),
+    replacedById: text("replaced_by_id"),
+  },
+  (t) => [index("idx_income_docs_income").on(t.incomeId)]
+);
+
 export const auditLog = sqliteTable(
   "audit_log",
   {

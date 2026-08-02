@@ -30,6 +30,7 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
     fxRows,
     importBatchRows,
     incomeRows,
+    incomeDocRows,
   ] = await Promise.all([
     opts.fy
       ? d.select().from(schema.expenses).where(eq(schema.expenses.financialYear, opts.fy))
@@ -46,10 +47,13 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
     opts.fy
       ? d.select().from(schema.income).where(eq(schema.income.financialYear, opts.fy))
       : d.select().from(schema.income),
+    d.select().from(schema.incomeDocuments),
   ]);
 
   const expenseIds = new Set(expensesRows.map((e) => e.id));
   const receipts = opts.fy ? receiptRows.filter((r) => expenseIds.has(r.expenseId)) : receiptRows;
+  const incomeIds = new Set(incomeRows.map((r) => r.id));
+  const incomeDocs = opts.fy ? incomeDocRows.filter((r) => incomeIds.has(r.incomeId)) : incomeDocRows;
 
   const data = {
     exportedAt: new Date().toISOString(),
@@ -57,6 +61,7 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
     scope: opts.fy ?? "all",
     expenses: expensesRows,
     income: incomeRows,
+    incomeDocuments: incomeDocs,
     receipts,
     subscriptions: subscriptionRows,
     categories: categoryRows,
@@ -76,6 +81,7 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
       expenses: expensesRows.length,
       income: incomeRows.length,
       receipts: receipts.length,
+      incomeDocuments: incomeDocs.length,
       subscriptions: subscriptionRows.length,
       auditLog: auditRows.length,
     },
@@ -83,6 +89,13 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
       file: `receipts/${r.sha256}.${r.originalFilename.split(".").pop() || "bin"}`,
       sha256: r.sha256,
       expenseId: r.expenseId,
+      version: r.version,
+      originalFilename: r.originalFilename,
+    })),
+    invoiceFiles: incomeDocs.map((r) => ({
+      file: `invoices/${r.sha256}.${r.originalFilename.split(".").pop() || "bin"}`,
+      sha256: r.sha256,
+      incomeId: r.incomeId,
       version: r.version,
       originalFilename: r.originalFilename,
     })),
@@ -102,7 +115,8 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
       "",
       "data.json      — every record (expenses, income, receipts metadata, subscriptions, audit log, settings).",
       "manifest.json  — table counts and the SHA-256 of every receipt file for integrity checks.",
-      "receipts/      — every receipt file version, named by content hash.",
+      "receipts/      — every expense receipt version, named by content hash.",
+      "invoices/      — every income invoice document version, named by content hash.",
       "",
       "All amounts in data.json are integer cents. Dates are YYYY-MM-DD.",
     ].join("\n"),
@@ -111,20 +125,23 @@ export async function buildBackupStream(opts: { fy?: string } = {}): Promise<{ s
 
   // Deduplicate by content hash (same file may back multiple versions/records).
   const seen = new Set<string>();
-  for (const r of receipts) {
-    const ext = r.originalFilename.split(".").pop() || "bin";
-    const name = `receipts/${r.sha256}.${ext}`;
-    if (seen.has(name)) continue;
-    seen.add(name);
-    try {
-      const buf = await getReceiptBytes(r);
-      archive.append(buf, { name });
-    } catch (e) {
-      archive.append(`Could not read receipt ${r.id} (${r.originalFilename}): ${(e as Error).message}\n`, {
-        name: `receipts/MISSING-${r.sha256}.txt`,
-      });
+  const appendFiles = async (rows: { id: string; sha256: string; originalFilename: string; storageDriver: string; storageKey: string }[], dir: string) => {
+    for (const r of rows) {
+      const ext = r.originalFilename.split(".").pop() || "bin";
+      const name = `${dir}/${r.sha256}.${ext}`;
+      if (seen.has(name)) continue;
+      seen.add(name);
+      try {
+        archive.append(await getReceiptBytes(r), { name });
+      } catch (e) {
+        archive.append(`Could not read ${r.id} (${r.originalFilename}): ${(e as Error).message}\n`, {
+          name: `${dir}/MISSING-${r.sha256}.txt`,
+        });
+      }
     }
-  }
+  };
+  await appendFiles(receipts, "receipts");
+  await appendFiles(incomeDocs, "invoices");
 
   void archive.finalize();
   const stamp = new Date().toISOString().slice(0, 10);
