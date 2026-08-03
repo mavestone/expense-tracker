@@ -91,7 +91,7 @@ const TOOLS = [
         query: { type: "string", description: "Client name, description or invoice ref text" },
         date: { type: "string", description: "Exact dateEarned filter, YYYY-MM-DD" },
         fy: { type: "string", description: "Financial year label, e.g. \"2025-26\"" },
-        status: { type: "string", description: "Comma list: active,void (default both)" },
+        status: { type: "string", description: "Comma list: active,void (default active only — totals cover exactly the statuses requested, so including void inflates them)" },
         outstanding: { type: "boolean", description: "Only invoices with no payment date" },
       },
       additionalProperties: false,

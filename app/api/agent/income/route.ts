@@ -38,10 +38,13 @@ export const GET = api(
     const url = new URL(req.url);
     const q = url.searchParams.get("q") || undefined;
     const fy = url.searchParams.get("fy") || undefined;
+    // Default to active only: listIncome computes its totals over the same
+    // status filter, so including voided records here would overstate revenue.
+    // Pass status=active,void explicitly to see voided records.
     const statusParam = url.searchParams.get("status");
     const status = statusParam
       ? (statusParam.split(",") as ("active" | "void")[])
-      : (["active", "void"] as ("active" | "void")[]);
+      : (["active"] as ("active" | "void")[]);
     const outstandingOnly = url.searchParams.get("outstanding") === "true";
 
     const { income, totals, outstanding } = await listIncome({ search: q, fy, status, outstandingOnly, limit: 25 });
