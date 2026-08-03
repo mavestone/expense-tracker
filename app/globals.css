@@ -103,16 +103,17 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
   height: 54px;
   display: flex; align-items: center; gap: 14px;
 }
-.topbar .brand { font-weight: 750; font-size: 15.5px; letter-spacing: -0.01em; color: var(--ink); display: flex; align-items: center; gap: 9px; }
-.topbar .brand svg { width: 22px; height: 22px; border-radius: 6px; display: block; }
-.topbar nav { display: flex; gap: 2px; margin-left: 8px; }
+/* brand and the trailing actions both flex:1 so the nav sits centred between them */
+.topbar .brand { flex: 1; min-width: 0; font-weight: 750; font-size: 15.5px; letter-spacing: -0.01em; color: var(--ink); display: flex; align-items: center; gap: 9px; }
+.topbar .brand svg { width: 22px; height: 22px; border-radius: 6px; display: block; flex: none; }
+.topbar nav { display: flex; gap: 2px; justify-content: center; flex: none; }
+.topbar .actions { flex: 1; display: flex; justify-content: flex-end; }
 .topbar nav a {
   padding: 6px 11px; border-radius: 8px; color: var(--ink-2); font-weight: 560; font-size: 13.5px;
   transition: background 0.12s ease, color 0.12s ease;
 }
 .topbar nav a:hover { background: var(--hover); color: var(--ink); text-decoration: none; }
 .topbar nav a.active { background: var(--accent-soft); color: var(--accent-strong); }
-.topbar .spacer { flex: 1; }
 .main { max-width: 1060px; margin: 0 auto; padding: 22px 16px calc(var(--nav-h) + 44px); }
 @media (min-width: 861px) { .main { padding-bottom: 56px; } }
 
@@ -351,3 +352,72 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 15px 0; }
 }
 .toast.error { background: var(--danger); }
 @keyframes toastin { from { opacity: 0; transform: translateX(-50%) translateY(8px); } }
+
+/* Financial-year switch (buttons, not a select) */
+.fyswitch {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 16px;
+}
+.fyswitch button {
+  appearance: none; cursor: pointer;
+  padding: 7px 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink-2); font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  min-height: 36px;
+}
+.fyswitch button:hover { background: var(--hover); color: var(--ink); }
+.fyswitch button.active {
+  background: var(--accent); border-color: var(--accent);
+  color: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* Tax position card */
+.taxbadge {
+  font-size: 10.5px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-3); background: var(--chip); border-radius: 999px; padding: 3px 9px;
+}
+.taxsummary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px; margin: 14px 0 4px;
+}
+.taxsummary .tlabel { font-size: 11.5px; color: var(--ink-3); font-weight: 600; letter-spacing: 0.02em; }
+.taxsummary .tvalue { font-size: 20px; font-weight: 760; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.taxsummary .tvalue.accent { color: var(--accent-strong); }
+.taxsummary .tsub { font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
+
+.ladder { margin: 16px 0 4px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.ladder .rung {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 12px; font-size: 13px;
+  border-top: 1px solid var(--line);
+}
+.ladder .rung:first-child { border-top: 0; }
+.ladder .rung .rate {
+  font-weight: 750; font-variant-numeric: tabular-nums; min-width: 42px;
+  color: var(--ink-3);
+}
+.ladder .rung .range { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.ladder .rung.passed { background: var(--hover); }
+.ladder .rung.passed .rate, .ladder .rung.passed .range { color: var(--ink-2); }
+.ladder .rung.current { background: var(--accent-soft); }
+.ladder .rung.current .rate { color: var(--accent-strong); }
+.ladder .rung.current .range { color: var(--ink); font-weight: 620; }
+.ladder .rung .here {
+  margin-left: auto; display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--accent-strong); white-space: nowrap;
+}
+.ladder .rung .here .bar {
+  display: block; width: 84px; height: 6px; border-radius: 999px;
+  background: var(--accent-ring); overflow: hidden;
+}
+.ladder .rung .here .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+
+.taxnote { font-size: 12.5px; color: var(--ink-2); margin: 12px 0 0; line-height: 1.5; }
+.taxnote.muted { font-size: 11.5px; color: var(--ink-3); border-top: 1px solid var(--line); padding-top: 10px; margin-top: 14px; }
+
+@media (max-width: 560px) {
+  .ladder .rung { flex-wrap: wrap; }
+  .ladder .rung .here { margin-left: 0; width: 100%; }
+  .ladder .rung .here .bar { width: 100%; }
+}

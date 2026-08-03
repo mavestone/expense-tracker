@@ -7,7 +7,6 @@ const NAV = [
   { href: "/", label: "Home" },
   { href: "/expenses", label: "Expenses" },
   { href: "/income", label: "Income" },
-  { href: "/subscriptions", label: "Subscriptions" },
   { href: "/reports", label: "Reports" },
   { href: "/import", label: "Import" },
   { href: "/audit", label: "Audit" },
@@ -65,10 +64,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        <span className="spacer" />
-        <button className="btn ghost small" onClick={logout}>
-          Lock
-        </button>
+        <span className="actions">
+          <button className="btn ghost small" onClick={logout}>
+            Lock
+          </button>
+        </span>
       </header>
 
       <main className="main">{children}</main>
