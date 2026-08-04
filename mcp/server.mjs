@@ -151,6 +151,34 @@ const TOOLS = [
     },
   },
   {
+    name: "record_disposal",
+    description:
+      "Record a balancing adjustment event on a CAPITAL asset expense — sold, stolen, destroyed, scrapped, or taken out of business use. Returns the resulting deductible or assessable adjustment. For an asset already written off in full under the instant asset write-off, an uninsured loss correctly nets to nil. Pass clear:true to remove a disposal recorded in error.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        expenseId: { type: "string" },
+        disposalDate: { type: "string", description: "YYYY-MM-DD — when the asset was sold or lost, not today" },
+        disposalReason: {
+          type: "string",
+          enum: ["sold", "stolen", "destroyed", "scrapped", "ceased_business_use"],
+        },
+        terminationValue: {
+          type: "string",
+          description: "Proceeds, or insurance/compensation received. \"0\" for an uninsured loss.",
+        },
+        adjustableValue: {
+          type: "string",
+          description: "Written-down value just before the event. Omit to infer it (nil for an instant-written-off asset).",
+        },
+        note: { type: "string" },
+        clear: { type: "boolean", description: "Remove a disposal recorded in error" },
+      },
+      required: ["expenseId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "attach_receipt",
     description: "Attach (or version-replace) a receipt on an existing EXPENSE record. Old versions are kept forever.",
     inputSchema: {
@@ -225,6 +253,14 @@ async function runTool(name, args = {}) {
       const body = { ...rest };
       if (invoicePath) body.invoice = readAttachment(invoicePath);
       return callApi("/api/agent/income", { method: "POST", body });
+    }
+
+    case "record_disposal": {
+      const { expenseId, ...body } = args;
+      return callApi(`/api/agent/expense/${encodeURIComponent(expenseId)}/disposal`, {
+        method: "POST",
+        body,
+      });
     }
 
     case "attach_receipt":

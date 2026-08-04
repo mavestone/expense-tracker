@@ -500,3 +500,89 @@ export async function expenseFlags(exp: Expense, receiptCount: number) {
   }
   return flags;
 }
+
+/** Reasons a capital asset stops being held or used for business. */
+export const DISPOSAL_REASONS = ["sold", "stolen", "destroyed", "scrapped", "ceased_business_use"] as const;
+export type DisposalReason = (typeof DISPOSAL_REASONS)[number];
+
+export function isDisposalReason(v: unknown): v is DisposalReason {
+  return typeof v === "string" && (DISPOSAL_REASONS as readonly string[]).includes(v);
+}
+
+export type DisposalInput = {
+  disposalDate: string;
+  disposalReason: DisposalReason;
+  /** Proceeds, or insurance/compensation received. Nil for an uninsured loss. */
+  terminationValueCents: number;
+  /** Written-down value immediately before the event. Null lets reports infer it. */
+  adjustableValueCents?: number | null;
+  disposalNote?: string | null;
+};
+
+/**
+ * Record a balancing adjustment event against a capital asset. Clearing it is
+ * supported by passing null, so a mistaken disposal can be undone without
+ * voiding the underlying expense.
+ */
+export async function setExpenseDisposal(id: string, input: DisposalInput | null) {
+  const existing = await getExpense(id);
+  if (!existing) throw new NotFoundError("Expense not found");
+  if (existing.status === "void") throw new ValidationError(["Voided records cannot be edited."]);
+
+  const errors: string[] = [];
+  if (input) {
+    if (!existing.isCapital)
+      errors.push("Only capital assets can have a disposal recorded. Mark this record as a capital asset first.");
+    if (!isValidIsoDate(input.disposalDate)) errors.push("Disposal date must be a valid date (YYYY-MM-DD).");
+    else if (input.disposalDate < existing.dateIncurred)
+      errors.push("Disposal date cannot be before the purchase date.");
+    if (!isDisposalReason(input.disposalReason))
+      errors.push(`Disposal reason must be one of: ${DISPOSAL_REASONS.join(", ")}.`);
+    if (!Number.isInteger(input.terminationValueCents) || input.terminationValueCents < 0)
+      errors.push("Termination value must be zero or a positive whole number of cents.");
+    if (
+      input.adjustableValueCents != null &&
+      (!Number.isInteger(input.adjustableValueCents) || input.adjustableValueCents < 0)
+    )
+      errors.push("Adjustable value must be zero or a positive whole number of cents.");
+  }
+  if (errors.length > 0) throw new ValidationError(errors);
+
+  const now = new Date().toISOString();
+  const next = input
+    ? {
+        disposalDate: input.disposalDate,
+        disposalReason: input.disposalReason,
+        terminationValueCents: input.terminationValueCents,
+        adjustableValueCents: input.adjustableValueCents ?? null,
+        disposalNote: input.disposalNote ?? null,
+      }
+    : {
+        disposalDate: null,
+        disposalReason: null,
+        terminationValueCents: null,
+        adjustableValueCents: null,
+        disposalNote: null,
+      };
+
+  const d = await db();
+  await d.transaction(async (tx) => {
+    await tx.update(schema.expenses).set({ ...next, updatedAt: now }).where(eq(schema.expenses.id, id));
+    await writeAudit(tx, [
+      {
+        entityType: "expense",
+        entityId: id,
+        action: "update",
+        field: "disposal",
+        oldValue: existing.disposalDate
+          ? `${existing.disposalDate} ${existing.disposalReason ?? ""} termination ${((existing.terminationValueCents ?? 0) / 100).toFixed(2)}`.trim()
+          : null,
+        newValue: input
+          ? `${input.disposalDate} ${input.disposalReason} termination ${(input.terminationValueCents / 100).toFixed(2)}`
+          : null,
+        note: input?.disposalNote ?? null,
+      },
+    ]);
+  });
+  return (await getExpense(id))!;
+}

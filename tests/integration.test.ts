@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
+import { eq } from "drizzle-orm";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -25,6 +26,7 @@ let T: {
   categorySummary: typeof import("../lib/reports").categorySummary;
   gstSummary: typeof import("../lib/reports").gstSummary;
   depreciationSchedule: typeof import("../lib/reports").depreciationSchedule;
+  setExpenseDisposal: typeof import("../lib/expenses").setExpenseDisposal;
   missingReceipts: typeof import("../lib/reports").missingReceipts;
   exportExpensesCsv: typeof import("../lib/csv").exportExpensesCsv;
   buildBackupStream: typeof import("../lib/backup").buildBackupStream;
@@ -333,5 +335,136 @@ describe("exports", () => {
     expect(text).toContain("data.json");
     expect(text).toContain("manifest.json");
     expect(text).toContain("receipts/");
+  });
+});
+
+describe("capital asset disposals", () => {
+  it("records a disposal, computes the adjustment and audits the change", async () => {
+    const asset = await T.createExpense({
+      dateIncurred: "2026-01-05",
+      supplierName: "Apple Pty Ltd",
+      description: "iPhone for filming",
+      categoryId: cameraCatId,
+      originalAmountCents: 219900,
+      originalCurrency: "AUD",
+      gstTreatment: "gst",
+      businessUseBp: 5000,
+      isCapital: true,
+      assetName: "iPhone 17 Pro Max",
+    });
+
+    // set the FY threshold so the asset is treated as instant-written-off
+    const d = await T.db();
+    await d
+      .update(T.schema.fyThresholds)
+      .set({ instantWriteoffCents: 2000000 })
+      .where(eq(T.schema.fyThresholds.fyLabel, "2025-26"));
+
+    await T.setExpenseDisposal(asset.id, {
+      disposalDate: "2026-03-14",
+      disposalReason: "stolen",
+      terminationValueCents: 0,
+      disposalNote: "Stolen, not insured",
+    });
+
+    const sched = await T.depreciationSchedule("2025-26");
+    const row = sched.assets.find((a) => a.id === asset.id)!;
+    expect(row.method).toBe("immediate");
+    // 50% of $2,199 is deductible up front
+    expect(row.deductionCents).toBe(109950);
+    expect(row.disposal?.reason).toBe("stolen");
+    // written off in full, uninsured -> nothing further either way
+    expect(row.disposal?.adjustableValueCents).toBe(0);
+    expect(row.disposal?.deductionCents).toBe(0);
+    expect(row.disposal?.assessableCents).toBe(0);
+
+    const audit = await T.getAuditForEntity("expense", asset.id);
+    expect(audit.some((a) => a.field === "disposal")).toBe(true);
+  });
+
+  it("treats an insurance payout above the written-down value as assessable", async () => {
+    const asset = await T.createExpense({
+      dateIncurred: "2026-02-01",
+      supplierName: "Camera House",
+      description: "Lens",
+      categoryId: cameraCatId,
+      originalAmountCents: 300000,
+      originalCurrency: "AUD",
+      gstTreatment: "gst",
+      businessUseBp: 10000,
+      isCapital: true,
+      assetName: "Test lens",
+    });
+    await T.setExpenseDisposal(asset.id, {
+      disposalDate: "2026-04-01",
+      disposalReason: "destroyed",
+      terminationValueCents: 150000,
+      adjustableValueCents: 0,
+    });
+    const sched = await T.depreciationSchedule("2025-26");
+    const row = sched.assets.find((a) => a.id === asset.id)!;
+    expect(row.disposal?.assessableCents).toBe(150000);
+    expect(row.disposal?.deductionCents).toBe(0);
+  });
+
+  it("rejects a disposal on a non-capital record and before the purchase date", async () => {
+    const notCapital = await T.createExpense({
+      dateIncurred: "2026-01-10",
+      supplierName: "Adobe",
+      description: "Subscription",
+      categoryId: softwareCatId,
+      originalAmountCents: 5599,
+      originalCurrency: "AUD",
+      gstTreatment: "gst",
+      businessUseBp: 10000,
+    });
+    await expect(
+      T.setExpenseDisposal(notCapital.id, {
+        disposalDate: "2026-02-01",
+        disposalReason: "sold",
+        terminationValueCents: 0,
+      })
+    ).rejects.toThrow(/capital/i);
+
+    const asset = await T.createExpense({
+      dateIncurred: "2026-05-01",
+      supplierName: "Camera House",
+      description: "Tripod",
+      categoryId: cameraCatId,
+      originalAmountCents: 50000,
+      originalCurrency: "AUD",
+      gstTreatment: "gst",
+      businessUseBp: 10000,
+      isCapital: true,
+    });
+    await expect(
+      T.setExpenseDisposal(asset.id, {
+        disposalDate: "2026-04-01",
+        disposalReason: "sold",
+        terminationValueCents: 0,
+      })
+    ).rejects.toThrow(/before the purchase date/i);
+  });
+
+  it("clears a disposal recorded in error", async () => {
+    const asset = await T.createExpense({
+      dateIncurred: "2026-01-20",
+      supplierName: "Camera House",
+      description: "Monitor",
+      categoryId: cameraCatId,
+      originalAmountCents: 80000,
+      originalCurrency: "AUD",
+      gstTreatment: "gst",
+      businessUseBp: 10000,
+      isCapital: true,
+    });
+    await T.setExpenseDisposal(asset.id, {
+      disposalDate: "2026-03-01",
+      disposalReason: "sold",
+      terminationValueCents: 40000,
+    });
+    const cleared = await T.setExpenseDisposal(asset.id, null);
+    expect(cleared.disposalDate).toBeNull();
+    expect(cleared.terminationValueCents).toBeNull();
   });
 });
