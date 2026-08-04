@@ -18,22 +18,27 @@ export type Rule = { label: string; verdict: Verdict; test: RegExp };
 const INTERNAL: Rule[] = [
   { label: "Transfer between own accounts", verdict: "internal", test: /\b(transfer (to|from) savings|transfer to spending|forward(ed)? to savings|round ?up|transfer from (safety|travel fund))\b/i },
   { label: "Card repayment", verdict: "internal", test: /\b(qantas credit cards|bpay to: qantas|card payment thank ?you|payment received - thank you)\b/i },
-  { label: "Own transfer", verdict: "internal", test: /\b(l ?b ?leslie|liam b(ranson)? leslie|wise australia pty)\b/i },
+  { label: "Own transfer", verdict: "internal", test: /\b(l ?b ?leslie|liam ?b(ranson)? ?leslie|liam leslie|wise australia pty)\b/i },
+  { label: "Moving money about", verdict: "internal", test: /\b(transfer (from|to)|forward (from|to)|cover spending|bank@post deposit)\b/i },
+  { label: "Family transfer", verdict: "internal", test: /\b(solomon leslie|elizabeth leslie|simone m leslie|david malcom leslie|david leslie)\b/i },
+  { label: "ATO refund", verdict: "internal", test: /\bATO\d{9,}|\bATO\b.*direct credit/i },
   { label: "Dishonoured or reversed", verdict: "internal", test: /\b(dishonour|de dishonour|reversal|chargeback)\b/i },
 ];
 
 /** Everyday private spending. Ordered most specific first. */
 const PERSONAL: Rule[] = [
-  { label: "Groceries", verdict: "personal", test: /\b(tesco|sainsbury|aldi|lidl|coles|woolworths|co ?-? ?op|iceland|asda|morrisons|waitrose|marks ?& ?spencer|amazon fresh|alfamart|indomaret|minimart|circle ?k|7-? ?eleven|spar\b|carrefour|biedronka|zabka|penny|rewe|edeka|migros|coop\b)/i },
+  { label: "Groceries", verdict: "personal", test: /\b(franprix|monoprix|intermarche|leclerc|toko |warung|munggu|mini ?mart|minimart|relay\b|newsagent|tesco|sainsbury|aldi|lidl|coles|woolworths|co ?-? ?op|iceland|asda|morrisons|waitrose|marks ?& ?spencer|amazon fresh|alfamart|indomaret|minimart|circle ?k|7-? ?eleven|spar\b|carrefour|biedronka|zabka|penny|rewe|edeka|migros|coop\b)/i },
   { label: "Takeaway or delivery", verdict: "personal", test: /\b(doordash|dd ?\*|deliveroo|uber ?eats|just ?eat|menulog|glovo|foodpanda|grabfood|gojek ?food)/i },
   { label: "Eating out", verdict: "personal", test: /\b(mcdonald|kfc|burger king|subway\d*|chipotle|starbucks|costa coffee|pret|nando|dominos|pizza|cafe|caffe|coffee|restaurant|restauracja|bistro|kebab|sushi|taco|noodle|ramen|bakery|patisserie|brewery|pub\b|bar\b|tst\*|sq ?\*|zettle_?\*|toast ?tab)/i },
-  { label: "Public transport", verdict: "personal", test: /\b(tfl|transport for london|mta ?\*|nyct|path tapp|oyster|trainline|irish ?rail|sbb|cff|ffs|db vertrieb|deutsche bahn|flixbus|hvv|omio|eurail|interrail|metro\b|tram|bus ?eireann|translink)/i },
-  { label: "Rideshare or taxi", verdict: "personal", test: /\b(uber(?! ?eats)|lyft|bolt\.eu|ola cabs|grab\b|gojek|gopay|lime|bird|voi|tier|beryl|santander cycle|cycle hire)/i },
+  { label: "Public transport", verdict: "personal", test: /\b(tfl|transport for london|mta ?\*|nyct|path tapp|oyster|trainline|irish ?rail|sbb|cff|ffs|db vertrieb|deutsche bahn|flixbus|hvv|omio|eurail|interrail|metro\b|tram|bus ?eireann|translink|idf ?mobilit|sncf|mycicero|mobilita|ratp|renfe|trenitalia|italo)/i },
+  { label: "Rideshare or taxi", verdict: "personal", test: /\b(uber(?! ?eats)|lyft|bolt\.eu|ola cabs|grab\b|gojek|gopay|lime|bird|voi|tier|beryl|santander cycle|cycle hire|humanforest|human forest|freenow|cabify)/i },
   { label: "Accommodation", verdict: "personal", test: /\b(hostel|hostelworld|booking\.com|bkg ?\*|airbnb|safestay|backpack|a&o hotel|balmers|alplodge|generator|st ?christopher|premier inn|travelodge|selina)/i },
   { label: "Rent or housing", verdict: "personal", test: /\b(rent\b|spareroom|deposit\/rent|room ?go|flatshare|council tax)/i },
   { label: "Entertainment", verdict: "personal", test: /\b(netflix|spotify|disney|prime video|cinema|imax|viagogo|ticketmaster|dice\.fm|eventbrite|steam ?games|playstation|xbox|nintendo)/i },
   { label: "Health and personal care", verdict: "personal", test: /\b(pharmacy|chemist|boots\b|superdrug|priceline|dentist|doctor|clinic|optical|specsavers|barber|hairdress|whitepouches|nicotine)/i },
   { label: "Clothing and general retail", verdict: "personal", test: /\b(primark|adidas|nike\b|uniqlo|zara|h&m|asos|david jones|myer|kmart|big ?w|target aus|decathlon|sports ?direct|tk ?maxx)/i },
+  { label: "Fuel", verdict: "personal", test: /\b(united petroleum|bp connect|caltex|ampol|shell\b|7-eleven fuel|migrol|circle ?k fuel|petrol)/i },
+  { label: "Days out", verdict: "personal", test: /\b(mini golf|kart track|adh entertainment|theme park|zoo\b|aquarium|museum|gallery|bowling|escape room|liberty cruise)/i },
   { label: "Cash withdrawal", verdict: "personal", test: /\b(atm|cash out|cash advance|international atm)/i },
   { label: "Bank or card fee", verdict: "personal", test: /\b(international transaction fee|intl transaction fee|atm operator fee|annual fee|late payment fee|interest charged|instalment plan interest|cash advance fee|overlimit)/i },
 ];
@@ -42,7 +47,7 @@ const PERSONAL: Rule[] = [
  * Merchants that sell both business and personal goods. Never auto-classified —
  * a standing desk and a set of bed sheets look identical on a statement.
  */
-const AMBIGUOUS = /\b(amazon(?! fresh)|ebay|temu|aliexpress|apple\b|apple\.com|paypal|afterpay|klarna|zip ?pay|officeworks|jb ?hi-?fi|harvey norman|bunnings|catch\.com|kogan(?! mobile)|wish\.com|etsy)\b/i;
+const AMBIGUOUS = /\b(amazon(?![ ./]?fresh)|ebay|temu|aliexpress|apple\b|apple\.com|paypal|afterpay|klarna|zip ?pay|officeworks|jb ?hi-?fi|harvey norman|bunnings|catch\.com|kogan(?! mobile)|wish\.com|etsy)\b/i;
 
 export type Classification = { verdict: Verdict; label: string | null; rule: string | null };
 
