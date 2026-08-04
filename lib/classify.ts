@@ -14,15 +14,22 @@ export type Verdict = "personal" | "internal" | "unsure";
 
 export type Rule = { label: string; verdict: Verdict; test: RegExp };
 
-/** Money moving between the owner's own accounts, or repaying a card — not spending at all. */
+/**
+ * The owner's own money moving around, plus the mechanics of running the
+ * accounts: saver transfers, card repayments, card fees and interest, nil-value
+ * verification holds, reversals. Nothing here is spending or income.
+ *
+ * Money from or to ANOTHER person is deliberately not in this list — that is
+ * either personal or something that needs a decision.
+ */
 const INTERNAL: Rule[] = [
-  { label: "Transfer between own accounts", verdict: "internal", test: /\b(transfer (to|from) savings|transfer to spending|forward(ed)? to savings|round ?up|transfer from (safety|travel fund))\b/i },
+  // Named against the owner's actual savers so "Transfer from <someone else>" is not swept up here.
+  { label: "Transfer between own accounts", verdict: "internal", test: /\b(transfer|forward(ed)?|move[dsr]?)\b[^|]{0,24}\b(savings|saver|safety|travel fund|spending)\b|\bround ?up\b|\bcover spending\b|\bbank@post deposit\b/i },
   { label: "Card repayment", verdict: "internal", test: /\b(qantas credit cards|bpay to: qantas|card payment thank ?you|payment received - thank you)\b/i },
   { label: "Own transfer", verdict: "internal", test: /\b(l ?b ?leslie|liam ?b(ranson)? ?leslie|liam leslie|wise australia pty)\b/i },
-  { label: "Moving money about", verdict: "internal", test: /\b(transfer (from|to)|forward (from|to)|cover spending|bank@post deposit)\b/i },
-  { label: "Family transfer", verdict: "internal", test: /\b(solomon leslie|elizabeth leslie|simone m leslie|david malcom leslie|david leslie)\b/i },
   { label: "ATO refund", verdict: "internal", test: /\bATO\d{9,}|\bATO\b.*direct credit/i },
   { label: "Card verification — no money moved", verdict: "internal", test: /\bcard checked\b|\btemporary hold\b|\bpre-?auth(orisation)?\b/i },
+  { label: "Card fee or interest", verdict: "internal", test: /\b(international transaction fee|intl transaction fee|atm operator fee|annual fee|late payment fee|interest charged|instalment plan interest|cash advance fee|overlimit|monthly fee|account fee)/i },
   { label: "Dishonoured or reversed", verdict: "internal", test: /\b(dishonour|de dishonour|reversal|chargeback)\b/i },
 ];
 
@@ -40,8 +47,8 @@ const PERSONAL: Rule[] = [
   { label: "Clothing and general retail", verdict: "personal", test: /\b(primark|adidas|nike\b|uniqlo|zara|h&m|asos|david jones|myer|kmart|big ?w|target aus|decathlon|sports ?direct|tk ?maxx)/i },
   { label: "Fuel", verdict: "personal", test: /\b(united petroleum|bp connect|caltex|ampol|shell\b|7-eleven fuel|migrol|circle ?k fuel|petrol)/i },
   { label: "Days out", verdict: "personal", test: /\b(mini golf|kart track|adh entertainment|theme park|zoo\b|aquarium|museum|gallery|bowling|escape room|liberty cruise)/i },
+  { label: "Family transfer", verdict: "personal", test: /\b(solomon leslie|elizabeth leslie|simone m leslie|david malcom leslie|david leslie)\b/i },
   { label: "Cash withdrawal", verdict: "personal", test: /\b(atm|cash out|cash advance|international atm)/i },
-  { label: "Bank or card fee", verdict: "personal", test: /\b(international transaction fee|intl transaction fee|atm operator fee|annual fee|late payment fee|interest charged|instalment plan interest|cash advance fee|overlimit)/i },
 ];
 
 /**
@@ -56,7 +63,12 @@ export function classify(text: string): Classification {
   const s = (text || "").trim();
   if (!s) return { verdict: "unsure", label: null, rule: null };
 
-  // Ambiguous retailers win over everything: they are where business buys hide.
+  // A nil-value card check is settled by the fact it moved no money, whoever the
+  // merchant is — "Card checked — Apple" must not fall through to the ambiguous list.
+  const check = INTERNAL.find((r) => r.label.startsWith("Card verification"))!;
+  if (check.test.test(s)) return { verdict: "internal", label: check.label, rule: "card-check" };
+
+  // Otherwise ambiguous retailers win: they are where business buys hide.
   if (AMBIGUOUS.test(s)) return { verdict: "unsure", label: null, rule: "ambiguous-retailer" };
 
   for (const r of INTERNAL) if (r.test.test(s)) return { verdict: "internal", label: r.label, rule: r.test.source.slice(0, 40) };

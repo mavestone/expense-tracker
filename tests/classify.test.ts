@@ -18,11 +18,9 @@ describe("personal spending triage", () => {
     expect(classify("Bkg*Hotel At Booking.C").verdict).toBe("personal");
   });
 
-  it("catches rent and card fees", () => {
+  it("catches rent", () => {
     expect(classify("Payment | Rent | Payment").verdict).toBe("personal");
     expect(classify("SpareRoom.co.uk").verdict).toBe("personal");
-    expect(classify("International Transaction Fee").verdict).toBe("personal");
-    expect(classify("Late Payment Fee").verdict).toBe("personal");
   });
 
   it("separates internal movement from spending", () => {
@@ -82,5 +80,37 @@ describe("merchant name comparison", () => {
   it("is safe on empty input", () => {
     expect(namesLookAlike("", "Adobe")).toBe(false);
     expect(namesLookAlike("Adobe", "")).toBe(false);
+  });
+});
+
+describe("internal is the owner's own money and the account mechanics", () => {
+  it("keeps saver movements, card repayments and own-name transfers", () => {
+    expect(classify("[Savings saver] Transfer to Spending").verdict).toBe("internal");
+    expect(classify("Transfer from Savings").verdict).toBe("internal");
+    expect(classify("Forward to Savings").verdict).toBe("internal");
+    expect(classify("Transfer from Travel Fund").verdict).toBe("internal");
+    expect(classify("BPAY TO: Qantas Credit Cards").verdict).toBe("internal");
+    expect(classify("L B LESLIE | Rent").verdict).toBe("internal");
+  });
+
+  it("keeps card fees, interest and nil-value checks", () => {
+    expect(classify("Interest Charged").verdict).toBe("internal");
+    expect(classify("Annual Fee").verdict).toBe("internal");
+    expect(classify("Late Payment Fee").verdict).toBe("internal");
+    expect(classify("International Transaction Fee").verdict).toBe("internal");
+    expect(classify("Card checked — Apple").verdict).toBe("internal");
+  });
+
+  it("sends another person's transfer to personal, not internal", () => {
+    expect(classify("Solomon Leslie Payment | Birthday").verdict).toBe("personal");
+    expect(classify("ELIZABETH LESLIE Osko Payment Received").verdict).toBe("personal");
+    expect(classify("David Malcom Leslie Payment Received").verdict).toBe("personal");
+  });
+
+  it("does not sweep up a transfer from someone who might be a client", () => {
+    // Brandon Armgardt reads like a personal contact but paid $825 for a wedding film
+    expect(classify("ARMGARDT BRANDON LADISLAV | 30% Deposit").verdict).toBe("unsure");
+    expect(classify("GODDARD TRAVIS BRADLEY MICHAEL | NOTPROVIDED").verdict).toBe("unsure");
+    expect(classify("Emmerson Price | Dj decks").verdict).toBe("unsure");
   });
 });

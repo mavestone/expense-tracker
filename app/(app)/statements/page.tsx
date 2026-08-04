@@ -34,7 +34,7 @@ const STATUS_TABS = [
   { id: "unreviewed", label: "Needs a decision" },
   { id: "logged", label: "Business" },
   { id: "personal", label: "Personal" },
-  { id: "ignored", label: "Internal & external transfers" },
+  { id: "ignored", label: "Internal transfers & fees" },
   { id: "", label: "All" },
 ] as const;
 
