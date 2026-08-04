@@ -266,8 +266,82 @@ export const loginAttempts = sqliteTable("login_attempts", {
   ok: integer("ok", { mode: "boolean" }).notNull(),
 });
 
+/**
+ * Bank and card statements, kept so a financial year can be reconciled line by
+ * line against what has actually been recorded. The original file is retained
+ * because a parsed row is a convenience, not evidence.
+ */
+export const statementAccounts = sqliteTable("statement_accounts", {
+  id: text("id").primaryKey(),
+  createdAt: text("created_at").notNull(),
+  label: text("label").notNull(), // "Up — Spending"
+  institution: text("institution").notNull(), // "Up (Bendigo and Adelaide Bank)"
+  accountRef: text("account_ref"), // masked: "BSB 633-123 · 200645521"
+  kind: text("kind").notNull().default("bank"), // bank | card
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const statements = sqliteTable(
+  "statements",
+  {
+    id: text("id").primaryKey(),
+    createdAt: text("created_at").notNull(),
+    accountId: text("account_id").notNull().references(() => statementAccounts.id),
+    fyLabel: text("fy_label").notNull(),
+    periodStart: text("period_start"),
+    periodEnd: text("period_end"),
+    filename: text("filename").notNull(),
+    mime: text("mime").notNull().default("application/pdf"),
+    sizeBytes: integer("size_bytes").notNull().default(0),
+    sha256: text("sha256").notNull(),
+    storageDriver: text("storage_driver").notNull(),
+    storageKey: text("storage_key").notNull(),
+    txnCount: integer("txn_count").notNull().default(0),
+  },
+  (t) => [index("idx_statements_fy").on(t.fyLabel), index("idx_statements_account").on(t.accountId)]
+);
+
+export const statementTransactions = sqliteTable(
+  "statement_transactions",
+  {
+    id: text("id").primaryKey(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    statementId: text("statement_id").notNull().references(() => statements.id),
+    accountId: text("account_id").notNull().references(() => statementAccounts.id),
+    fyLabel: text("fy_label").notNull(),
+
+    date: text("date").notNull(),
+    description: text("description").notNull(),
+    counterparty: text("counterparty"),
+    direction: text("direction").notNull(), // in | out
+    amountCents: integer("amount_cents").notNull(), // as charged, in `currency`
+    currency: text("currency").notNull().default("AUD"),
+    /** Indicative AUD for foreign rows; the tracker freezes the real rate on the record. */
+    audAmountCents: integer("aud_amount_cents"),
+
+    // unreviewed | logged (has a tracker record) | ignored (deliberately out of scope)
+    status: text("status").notNull().default("unreviewed"),
+    matchedExpenseId: text("matched_expense_id"),
+    matchedIncomeId: text("matched_income_id"),
+    /** auto = matched by the matcher, manual = ticked by the owner */
+    matchSource: text("match_source"),
+    ignoreReason: text("ignore_reason"),
+    note: text("note"),
+  },
+  (t) => [
+    index("idx_sttxn_fy").on(t.fyLabel),
+    index("idx_sttxn_account").on(t.accountId),
+    index("idx_sttxn_status").on(t.status),
+    index("idx_sttxn_date").on(t.date),
+  ]
+);
+
 export type Expense = typeof expenses.$inferSelect;
 export type NewExpense = typeof expenses.$inferInsert;
 export type Receipt = typeof receipts.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type Category = typeof categories.$inferSelect;
+export type StatementAccount = typeof statementAccounts.$inferSelect;
+export type Statement = typeof statements.$inferSelect;
+export type StatementTransaction = typeof statementTransactions.$inferSelect;

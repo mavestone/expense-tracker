@@ -8,7 +8,7 @@ const NAV = [
   { href: "/expenses", label: "Expenses" },
   { href: "/income", label: "Income" },
   { href: "/reports", label: "Reports" },
-  { href: "/import", label: "Import" },
+  { href: "/statements", label: "Statements" },
   { href: "/audit", label: "Audit" },
   { href: "/settings", label: "Settings" },
 ];
@@ -44,7 +44,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }
 
-  const moreActive = ["/reports", "/import", "/audit", "/settings", "/subscriptions"].some((h) => pathname.startsWith(h));
+  const moreActive = ["/reports", "/statements", "/import", "/audit", "/settings", "/subscriptions"].some((h) => pathname.startsWith(h));
 
   return (
     <div className="shell">
