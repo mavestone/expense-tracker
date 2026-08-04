@@ -1,6 +1,6 @@
 import { api, json } from "@/lib/api";
 import { checkAgentAuth, agentApiEnabled } from "@/lib/agent-auth";
-import { autoMatch, triage, resetAutoDecisions } from "@/lib/statements";
+import { autoMatch, triage, resetAutoDecisions, reviewProgress } from "@/lib/statements";
 
 export const runtime = "nodejs";
 
@@ -20,7 +20,8 @@ export const POST = api(
     const reset = p.get("reset") === "1" ? await resetAutoDecisions(fy) : null;
     const triaged = p.get("triage") === "0" ? null : await triage(fy);
     const matching = p.get("match") === "0" ? null : await autoMatch(fy);
-    return json({ reset, triage: triaged, matching });
+    // report the resulting state so a run can be verified, not inferred
+    return json({ reset, triage: triaged, matching, progress: await reviewProgress({ fy }) });
   },
   { auth: false }
 );
