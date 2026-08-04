@@ -34,10 +34,24 @@ export type ParsedTxn = {
   audAmountCents?: number | null;
 };
 
-/** Matching window: card charges often settle a day or two after the invoice. */
-const MATCH_DAY_WINDOW = 4;
-/** Tolerance on the AUD comparison, to absorb rounding between rate sources. */
-const MATCH_CENTS_TOLERANCE = 200;
+/**
+ * Card settlement lags the invoice, sometimes by weeks — Adobe's 6 Feb invoice
+ * was charged on the 22nd. A wide window is only safe because the merchant name
+ * must agree first; among the survivors the closest date wins.
+ */
+const MATCH_DAY_WINDOW = 45;
+/**
+ * The card is charged at the provider's rate, the record is converted at the
+ * RBA's, so the two rarely agree to the cent: Namecheap's invoice converts to
+ * A$183.66 against a card charge of A$186.03.
+ */
+const MATCH_CENTS_TOLERANCE = 600;
+
+function daysApart(a: string, b: string): number {
+  return Math.abs(
+    (Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86_400_000
+  );
+}
 
 function shiftDays(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -235,28 +249,43 @@ export async function autoMatch(fyLabel?: string) {
   let matched = 0;
   const now = new Date().toISOString();
 
+  // One record should not be claimed by two different statement lines.
+  const usedExpense = new Set<string>();
+  const usedIncome = new Set<string>();
+
   for (const t of txns) {
     // -1 never matches on the AUD leg, leaving the original-currency test to do the work
     const aud = t.audAmountCents ?? -1;
-    const lo = shiftDays(t.date, -MATCH_DAY_WINDOW);
-    const hi = shiftDays(t.date, MATCH_DAY_WINDOW);
+    const text = `${t.counterparty ?? ""} ${t.description}`;
+
+    const amountAgrees = (recAud: number, recAmt: number, recCur: string) =>
+      Math.abs(recAud - aud) <= MATCH_CENTS_TOLERANCE ||
+      (recCur === t.currency && recAmt === t.amountCents);
 
     if (t.direction === "out") {
-      const hits = expenses.filter(
-        (e) =>
-          e.dateIncurred >= lo &&
-          e.dateIncurred <= hi &&
-          (Math.abs(e.audAmountCents - aud) <= MATCH_CENTS_TOLERANCE ||
-            // foreign rows match far better on what the merchant actually charged
-            (e.originalCurrency === t.currency && e.originalAmountCents === t.amountCents))
-      );
-      const named = hits.filter((e) => namesLookAlike(`${t.counterparty ?? ""} ${t.description}`, e.supplierName));
-      if (named.length === 1) {
+      const viable = expenses
+        .filter((e) => !usedExpense.has(e.id))
+        .filter((e) => namesLookAlike(text, e.supplierName))
+        .filter((e) => amountAgrees(e.audAmountCents, e.originalAmountCents, e.originalCurrency))
+        .filter((e) => daysApart(e.dateIncurred, t.date) <= MATCH_DAY_WINDOW)
+        .sort(
+          (a, b) =>
+            daysApart(a.dateIncurred, t.date) - daysApart(b.dateIncurred, t.date) ||
+            Math.abs(a.audAmountCents - aud) - Math.abs(b.audAmountCents - aud)
+        );
+      // decline when the two best are indistinguishable
+      const best = viable[0];
+      const tie =
+        viable.length > 1 &&
+        daysApart(viable[1].dateIncurred, t.date) === daysApart(best.dateIncurred, t.date) &&
+        Math.abs(viable[1].audAmountCents - aud) === Math.abs(best.audAmountCents - aud);
+      if (best && !tie) {
+        usedExpense.add(best.id);
         await d
           .update(schema.statementTransactions)
           .set({
             status: "logged",
-            matchedExpenseId: named[0].id,
+            matchedExpenseId: best.id,
             matchSource: t.matchSource ?? "auto",
             updatedAt: now,
           })
@@ -264,19 +293,29 @@ export async function autoMatch(fyLabel?: string) {
         matched++;
       }
     } else {
-      const hits = income.filter(
-        (r) =>
-          ((r.datePaid ?? r.dateEarned) >= lo && (r.datePaid ?? r.dateEarned) <= hi) &&
-          (Math.abs(r.audAmountCents - aud) <= MATCH_CENTS_TOLERANCE ||
-            (r.originalCurrency === t.currency && r.originalAmountCents === t.amountCents))
-      );
-      const named = hits.filter((r) => namesLookAlike(`${t.counterparty ?? ""} ${t.description}`, r.clientName));
-      if (named.length === 1) {
+      const viable = income
+        .filter((r) => !usedIncome.has(r.id))
+        .filter((r) => namesLookAlike(text, r.clientName))
+        .filter((r) => amountAgrees(r.audAmountCents, r.originalAmountCents, r.originalCurrency))
+        .filter((r) => daysApart(r.datePaid ?? r.dateEarned, t.date) <= MATCH_DAY_WINDOW)
+        .sort(
+          (a, b) =>
+            daysApart(a.datePaid ?? a.dateEarned, t.date) - daysApart(b.datePaid ?? b.dateEarned, t.date) ||
+            Math.abs(a.audAmountCents - aud) - Math.abs(b.audAmountCents - aud)
+        );
+      const best = viable[0];
+      const tie =
+        viable.length > 1 &&
+        daysApart(viable[1].datePaid ?? viable[1].dateEarned, t.date) ===
+          daysApart(best.datePaid ?? best.dateEarned, t.date) &&
+        Math.abs(viable[1].audAmountCents - aud) === Math.abs(best.audAmountCents - aud);
+      if (best && !tie) {
+        usedIncome.add(best.id);
         await d
           .update(schema.statementTransactions)
           .set({
             status: "logged",
-            matchedIncomeId: named[0].id,
+            matchedIncomeId: best.id,
             matchSource: t.matchSource ?? "auto",
             updatedAt: now,
           })
@@ -285,6 +324,7 @@ export async function autoMatch(fyLabel?: string) {
       }
     }
   }
+
   return { scanned: txns.length, matched };
 }
 
