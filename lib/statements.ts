@@ -5,6 +5,7 @@ import { financialYear, isValidIsoDate } from "./fy";
 import { getStorage, sha256Hex, getReceiptBytes } from "./storage";
 import { writeAudit } from "./audit";
 import { NotFoundError, ValidationError } from "./expenses";
+import { classify, namesLookAlike } from "./classify";
 
 /**
  * Statement reconciliation.
@@ -15,7 +16,13 @@ import { NotFoundError, ValidationError } from "./expenses";
  * deliberately set aside with a reason. Nothing here creates expenses or income.
  */
 
-export type TxnStatus = "unreviewed" | "logged" | "ignored";
+/**
+ * unreviewed — still needs a look
+ * logged     — matched to a business expense or income record
+ * personal   — private spending, deliberately out of the books
+ * ignored    — not spending at all (own transfers, card repayments, reversals)
+ */
+export type TxnStatus = "unreviewed" | "logged" | "personal" | "ignored";
 
 export type ParsedTxn = {
   date: string;
@@ -193,9 +200,15 @@ export async function ingestStatement(input: {
 }
 
 /**
- * Link statement lines to tracker records by date proximity and AUD amount.
- * Only ever moves a line from "unreviewed" to "logged" — it never overrides a
- * decision already made, and never guesses when two candidates are equally close.
+ * Link statement lines to tracker records.
+ *
+ * Date proximity and amount alone are not enough — a $40 lunch four days from a
+ * $40 software invoice looked like a match and produced a lot of wrong ones. The
+ * merchant name now has to agree as well, so "logged" means what it says: this
+ * line is a business expense or income record that exists in the tracker.
+ *
+ * Only ever moves a line out of "unreviewed", never overrides a decision already
+ * made, and declines to guess when two candidates are equally close.
  */
 export async function autoMatch(fyLabel?: string) {
   const d = await db();
@@ -227,10 +240,11 @@ export async function autoMatch(fyLabel?: string) {
             // foreign rows match far better on what the merchant actually charged
             (e.originalCurrency === t.currency && e.originalAmountCents === t.amountCents))
       );
-      if (hits.length === 1) {
+      const named = hits.filter((e) => namesLookAlike(`${t.counterparty ?? ""} ${t.description}`, e.supplierName));
+      if (named.length === 1) {
         await d
           .update(schema.statementTransactions)
-          .set({ status: "logged", matchedExpenseId: hits[0].id, matchSource: "auto", updatedAt: now })
+          .set({ status: "logged", matchedExpenseId: named[0].id, matchSource: "auto", updatedAt: now })
           .where(eq(schema.statementTransactions.id, t.id));
         matched++;
       }
@@ -241,10 +255,11 @@ export async function autoMatch(fyLabel?: string) {
           (Math.abs(r.audAmountCents - aud) <= MATCH_CENTS_TOLERANCE ||
             (r.originalCurrency === t.currency && r.originalAmountCents === t.amountCents))
       );
-      if (hits.length === 1) {
+      const named = hits.filter((r) => namesLookAlike(`${t.counterparty ?? ""} ${t.description}`, r.clientName));
+      if (named.length === 1) {
         await d
           .update(schema.statementTransactions)
-          .set({ status: "logged", matchedIncomeId: hits[0].id, matchSource: "auto", updatedAt: now })
+          .set({ status: "logged", matchedIncomeId: named[0].id, matchSource: "auto", updatedAt: now })
           .where(eq(schema.statementTransactions.id, t.id));
         matched++;
       }
@@ -263,8 +278,8 @@ export async function setTxnReview(
     .from(schema.statementTransactions)
     .where(eq(schema.statementTransactions.id, id));
   if (!existing) throw new NotFoundError("Statement transaction not found");
-  if (!["unreviewed", "logged", "ignored"].includes(input.status))
-    throw new ValidationError(["Status must be unreviewed, logged or ignored."]);
+  if (!["unreviewed", "logged", "personal", "ignored"].includes(input.status))
+    throw new ValidationError(["Status must be unreviewed, logged, personal or ignored."]);
   if (input.status === "ignored" && !input.ignoreReason?.trim())
     throw new ValidationError(["A reason is required to set a line aside."]);
 
@@ -274,7 +289,7 @@ export async function setTxnReview(
       .update(schema.statementTransactions)
       .set({
         status: input.status,
-        ignoreReason: input.status === "ignored" ? input.ignoreReason!.trim() : null,
+        ignoreReason: input.status === "ignored" || input.status === "personal" ? (input.ignoreReason?.trim() || null) : null,
         note: input.note ?? existing.note,
         matchedExpenseId: input.matchedExpenseId ?? (input.status === "logged" ? existing.matchedExpenseId : null),
         matchedIncomeId: input.matchedIncomeId ?? (input.status === "logged" ? existing.matchedIncomeId : null),
@@ -315,7 +330,7 @@ export async function listTransactions(f: TxnFilters = {}) {
   if (f.accountId) conds.push(eq(schema.statementTransactions.accountId, f.accountId));
   if (f.status?.length) conds.push(inArray(schema.statementTransactions.status, f.status));
   if (f.direction) conds.push(eq(schema.statementTransactions.direction, f.direction));
-  if (f.minCents != null) conds.push(sql`coalesce(${schema.statementTransactions.audAmountCents}, ${schema.statementTransactions.amountCents}) >= ${f.minCents}`);
+  if (f.minCents != null) conds.push(sql`coalesce(${schema.statementTransactions.audAmountCents}, 0) >= ${f.minCents}`);
   if (f.q?.trim()) {
     const q = `%${f.q.trim().replace(/[%_]/g, "")}%`;
     conds.push(or(like(schema.statementTransactions.description, q), like(schema.statementTransactions.counterparty, q))!);
@@ -334,8 +349,10 @@ export async function listTransactions(f: TxnFilters = {}) {
   const [totals] = await d
     .select({
       count: sql<number>`count(*)`,
-      outCents: sql<number>`coalesce(sum(case when ${schema.statementTransactions.direction} = 'out' then coalesce(${schema.statementTransactions.audAmountCents}, ${schema.statementTransactions.amountCents}) else 0 end), 0)`,
-      inCents: sql<number>`coalesce(sum(case when ${schema.statementTransactions.direction} = 'in' then coalesce(${schema.statementTransactions.audAmountCents}, ${schema.statementTransactions.amountCents}) else 0 end), 0)`,
+      // only rows with a real AUD figure — a raw IDR amount summed as dollars is nonsense
+      outCents: sql<number>`coalesce(sum(case when ${schema.statementTransactions.direction} = 'out' then coalesce(${schema.statementTransactions.audAmountCents}, 0) else 0 end), 0)`,
+      inCents: sql<number>`coalesce(sum(case when ${schema.statementTransactions.direction} = 'in' then coalesce(${schema.statementTransactions.audAmountCents}, 0) else 0 end), 0)`,
+      unconverted: sql<number>`sum(case when ${schema.statementTransactions.audAmountCents} is null then 1 else 0 end)`,
     })
     .from(schema.statementTransactions)
     .where(where);
@@ -356,12 +373,14 @@ export async function reviewProgress(f: Pick<TxnFilters, "fy" | "accountId">) {
     .groupBy(schema.statementTransactions.status);
   const by = Object.fromEntries(rows.map((r) => [r.status, r.n]));
   const total = rows.reduce((s, r) => s + r.n, 0);
+  const done = (by.logged ?? 0) + (by.personal ?? 0) + (by.ignored ?? 0);
   return {
     total,
     unreviewed: by.unreviewed ?? 0,
     logged: by.logged ?? 0,
+    personal: by.personal ?? 0,
     ignored: by.ignored ?? 0,
-    donePct: total > 0 ? Math.round((((by.logged ?? 0) + (by.ignored ?? 0)) / total) * 100) : 0,
+    donePct: total > 0 ? Math.round((done / total) * 100) : 0,
   };
 }
 
@@ -420,4 +439,53 @@ export async function deleteStatement(id: string) {
   await d.delete(schema.statements).where(eq(schema.statements.id, id));
   // The stored file is content-addressed and may be shared; it is left in place.
   return { deleted: true, filename: s.filename, removedTransactions: n };
+}
+
+
+/**
+ * Clear every automatic decision, leaving anything the owner touched by hand.
+ * Used when the matcher itself changes and its previous output can't be trusted.
+ */
+export async function resetAutoDecisions(fyLabel?: string) {
+  const d = await db();
+  const conds = [eq(schema.statementTransactions.matchSource, "auto")];
+  if (fyLabel) conds.push(eq(schema.statementTransactions.fyLabel, fyLabel));
+  const now = new Date().toISOString();
+  const rows = await d.select().from(schema.statementTransactions).where(and(...conds));
+  for (const r of rows) {
+    await d
+      .update(schema.statementTransactions)
+      .set({ status: "unreviewed", matchedExpenseId: null, matchedIncomeId: null, matchSource: null, ignoreReason: null, updatedAt: now })
+      .where(eq(schema.statementTransactions.id, r.id));
+  }
+  return { cleared: rows.length };
+}
+
+/**
+ * Sort the obvious noise out of the way: everyday private spending becomes
+ * "personal", movements between the owner's own accounts become "ignored".
+ * Only touches unreviewed lines, and never classifies a retailer that sells both
+ * business and personal goods.
+ */
+export async function triage(fyLabel?: string) {
+  const d = await db();
+  const conds = [eq(schema.statementTransactions.status, "unreviewed")];
+  if (fyLabel) conds.push(eq(schema.statementTransactions.fyLabel, fyLabel));
+  const rows = await d.select().from(schema.statementTransactions).where(and(...conds));
+
+  const now = new Date().toISOString();
+  let personal = 0;
+  let internal = 0;
+  for (const r of rows) {
+    const c = classify(`${r.counterparty ?? ""} ${r.description}`);
+    if (c.verdict === "unsure") continue;
+    const status = c.verdict === "personal" ? "personal" : "ignored";
+    await d
+      .update(schema.statementTransactions)
+      .set({ status, ignoreReason: c.label, matchSource: "auto", updatedAt: now })
+      .where(eq(schema.statementTransactions.id, r.id));
+    if (status === "personal") personal++;
+    else internal++;
+  }
+  return { scanned: rows.length, personal, internal, left: rows.length - personal - internal };
 }

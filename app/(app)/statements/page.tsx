@@ -6,7 +6,7 @@ import { apiGet } from "@/lib/client";
 import { formatAUD, formatCurrency } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 
-type Progress = { total: number; unreviewed: number; logged: number; ignored: number; donePct: number };
+type Progress = { total: number; unreviewed: number; logged: number; personal: number; ignored: number; donePct: number };
 
 type StatementFile = {
   id: string; fyLabel: string; filename: string; periodStart: string | null; periodEnd: string | null;
@@ -23,36 +23,36 @@ type Overview = { accounts: Account[]; financialYears: string[]; progress: Progr
 type Txn = {
   id: string; accountId: string; date: string; description: string; counterparty: string | null;
   direction: "in" | "out"; amountCents: number; currency: string; audAmountCents: number | null;
-  status: "unreviewed" | "logged" | "ignored";
+  status: "unreviewed" | "logged" | "personal" | "ignored";
   matchedExpenseId: string | null; matchedIncomeId: string | null; matchSource: string | null;
   ignoreReason: string | null;
 };
 
-type TxnPage = { transactions: Txn[]; totals: { count: number; outCents: number; inCents: number }; hasMore: boolean; progress: Progress };
+type TxnPage = { transactions: Txn[]; totals: { count: number; outCents: number; inCents: number; unconverted: number }; hasMore: boolean; progress: Progress };
 
 const STATUS_TABS = [
-  { id: "unreviewed", label: "To review" },
-  { id: "logged", label: "Logged" },
-  { id: "ignored", label: "Set aside" },
+  { id: "unreviewed", label: "Needs a decision" },
+  { id: "logged", label: "Business" },
+  { id: "personal", label: "Personal" },
+  { id: "ignored", label: "Not spending" },
   { id: "", label: "All" },
 ] as const;
 
-const QUICK_REASONS = [
-  "Personal",
+const NOT_SPENDING_REASONS = [
   "Own transfer between my accounts",
-  "Card repayment — not an expense",
+  "Card repayment",
   "Refunded / reversed",
   "Family or gift",
   "Already counted elsewhere",
 ];
 
 function Bar({ p }: { p: Progress }) {
-  const logged = p.total ? (p.logged / p.total) * 100 : 0;
-  const ignored = p.total ? (p.ignored / p.total) * 100 : 0;
+  const pct = (n: number) => (p.total ? (n / p.total) * 100 : 0);
   return (
-    <div className="pbar" title={`${p.logged} logged · ${p.ignored} set aside · ${p.unreviewed} to review`}>
-      <span className="seg logged" style={{ width: `${logged}%` }} />
-      <span className="seg ignored" style={{ width: `${ignored}%` }} />
+    <div className="pbar" title={`${p.logged} business · ${p.personal} personal · ${p.ignored} not spending · ${p.unreviewed} to decide`}>
+      <span className="seg logged" style={{ width: `${pct(p.logged)}%` }} />
+      <span className="seg personal" style={{ width: `${pct(p.personal)}%` }} />
+      <span className="seg ignored" style={{ width: `${pct(p.ignored)}%` }} />
     </div>
   );
 }
@@ -176,70 +176,48 @@ export default function StatementsPage() {
                   </div>
                 </div>
                 <div className="revlegend">
-                  <span><i className="dot logged" /> {shownProgress.logged} logged</span>
-                  <span><i className="dot ignored" /> {shownProgress.ignored} set aside</span>
-                  <span><i className="dot todo" /> {shownProgress.unreviewed} to review</span>
+                  <span><i className="dot logged" /> {shownProgress.logged} business</span>
+                  <span><i className="dot personal" /> {shownProgress.personal} personal</span>
+                  <span><i className="dot ignored" /> {shownProgress.ignored} not spending</span>
+                  <span><i className="dot todo" /> {shownProgress.unreviewed} to decide</span>
                 </div>
               </div>
               <Bar p={shownProgress} />
             </div>
           )}
 
-          <div className="acctgrid mb2">
-            <button
-              type="button"
-              className={`acct${accountId === "" ? " active" : ""}`}
-              onClick={() => setAccountId("")}
-            >
-              <div className="acctname">All accounts</div>
-              <div className="muted small">{ov.progress.total} lines · FY {fy}</div>
-              <Bar p={ov.progress} />
+          <div className="acctpills mb2">
+            <button type="button" className={`apill all${accountId === "" ? " active" : ""}`} onClick={() => setAccountId("")}>
+              <span className="alabel">All accounts</span>
+              <span className="acount">{ov.progress.total}</span>
             </button>
-            {accounts.map((a) => (
+            {accounts.map((a, i) => (
               <button
                 key={a.id}
                 type="button"
-                className={`acct${accountId === a.id ? " active" : ""}`}
+                className={`apill c${i % 4}${accountId === a.id ? " active" : ""}`}
                 onClick={() => setAccountId(a.id)}
               >
-                <div className="acctname">
-                  {a.label} <span className={`badge ${a.kind === "card" ? "warn" : ""}`}>{a.kind}</span>
-                </div>
-                <div className="muted small">
-                  {a.accountRef ?? a.institution} · {a.progress.total} lines
-                </div>
-                <Bar p={a.progress} />
-                {a.statements.length > 0 && (
-                  <div className="files">
-                    {a.statements.map((s) => (
-                      <a
-                        key={s.id}
-                        href={`/api/statements/${s.id}/file`}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        title={`${s.filename} · ${s.txnCount} lines${s.periodStart ? ` · ${formatDateAU(s.periodStart)} – ${formatDateAU(s.periodEnd!)}` : ""}`}
-                      >
-                        ⤓ {s.periodStart ? formatDateAU(s.periodStart).slice(0, 6) : "PDF"}
-                      </a>
-                    ))}
-                    {accountId === a.id && a.statements.map((s) => (
-                      <button
-                        key={`rm-${s.id}`}
-                        type="button"
-                        className="rmfile"
-                        disabled={busy === s.id}
-                        title={`Remove ${s.filename}`}
-                        onClick={(e) => { e.stopPropagation(); removeStatement(s.id, s.filename); }}
-                      >
-                        ✕ {s.periodStart ? formatDateAU(s.periodStart).slice(0, 6) : s.filename.slice(0, 8)}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <span className="alabel">{a.label}</span>
+                <span className="acount">{a.progress.total}</span>
+                <span className="apct">{a.progress.donePct}%</span>
               </button>
             ))}
           </div>
+
+          {current && current.statements.length > 0 && (
+            <div className="stfiles mb2">
+              <span className="muted small">Original statements —</span>
+              {current.statements.map((st) => (
+                <span key={st.id} className="stfile">
+                  <a href={`/api/statements/${st.id}/file`} target="_blank" rel="noreferrer" title={`${st.filename} · ${st.txnCount} lines`}>
+                    ⤓ {st.periodStart ? `${formatDateAU(st.periodStart)} – ${formatDateAU(st.periodEnd!)}` : st.filename}
+                  </a>
+                  <button type="button" className="rmfile" disabled={busy === st.id} title="Remove this statement" onClick={() => removeStatement(st.id, st.filename)}>✕</button>
+                </span>
+              ))}
+            </div>
+          )}
 
           <div className="card">
             <div className="filters">
@@ -276,83 +254,70 @@ export default function StatementsPage() {
               <>
                 <div className="muted small mb1">
                   {page.totals.count} line{page.totals.count === 1 ? "" : "s"} · out {formatAUD(page.totals.outCents)} · in {formatAUD(page.totals.inCents)}
+                  {page.totals.unconverted > 0 && ` · ${page.totals.unconverted} foreign line${page.totals.unconverted === 1 ? "" : "s"} not converted, excluded from these totals`}
                   {page.hasMore && " · showing the first 300"}
                 </div>
                 <div className="tablewrap">
-                  <table className="data">
+                  <table className="data csv">
                     <thead>
                       <tr>
-                        <th>Date</th><th>Description</th><th className="r">Amount</th><th>Status</th><th className="r">Actions</th>
+                        <th>Date</th><th>Account</th><th>Description</th>
+                        <th className="r">Amount</th><th className="r">AUD</th>
+                        <th>Category</th><th className="r">Decide</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {page.transactions.map((t) => (
-                        <tr key={t.id} className={t.status !== "unreviewed" ? "done" : ""}>
-                          <td className="nowrap">{formatDateAU(t.date)}</td>
-                          <td>
-                            <div className="txndesc">{t.counterparty || t.description}</div>
-                            {t.counterparty && <div className="muted small">{t.description}</div>}
-                            {t.ignoreReason && <div className="muted small">Set aside — {t.ignoreReason}</div>}
-                          </td>
-                          <td className="r nowrap">
-                            <span className={t.direction === "in" ? "amt in" : "amt"}>
-                              {t.direction === "in" ? "+" : ""}
-                              {t.currency === "AUD"
-                                ? formatAUD(t.amountCents)
-                                : formatCurrency(t.amountCents, t.currency)}
-                            </span>
-                            {t.currency !== "AUD" && t.audAmountCents != null && (
-                              <div className="muted small">≈{formatAUD(t.audAmountCents)}</div>
-                            )}
-                          </td>
-                          <td>
-                            {t.status === "logged" && (
-                              <span className="badge ok">
-                                logged{t.matchSource === "auto" ? " (auto)" : ""}
+                      {page.transactions.map((t) => {
+                        const acct = accounts.find((a) => a.id === t.accountId);
+                        return (
+                          <tr key={t.id} className={t.status !== "unreviewed" ? "done" : ""}>
+                            <td className="nowrap mono">{t.date}</td>
+                            <td className="nowrap muted small">{acct?.label ?? "—"}</td>
+                            <td className="desc">
+                              <span title={t.description}>{t.counterparty || t.description}</span>
+                              {t.ignoreReason && <span className="muted small"> · {t.ignoreReason}</span>}
+                            </td>
+                            <td className="r nowrap mono">
+                              <span className={t.direction === "in" ? "amt in" : "amt"}>
+                                {t.direction === "in" ? "+" : "−"}
+                                {t.currency === "AUD" ? formatAUD(t.amountCents) : formatCurrency(t.amountCents, t.currency)}
                               </span>
-                            )}
-                            {t.status === "ignored" && <span className="badge">set aside</span>}
-                            {t.status === "unreviewed" && <span className="badge warn">to review</span>}
-                            {(t.matchedExpenseId || t.matchedIncomeId) && (
-                              <div>
-                                <Link
-                                  className="small"
-                                  href={t.matchedExpenseId ? `/expenses/${t.matchedExpenseId}` : `/income/${t.matchedIncomeId}`}
-                                >
-                                  view record →
+                            </td>
+                            <td className="r nowrap mono muted">
+                              {t.audAmountCents != null ? formatAUD(t.audAmountCents) : "—"}
+                            </td>
+                            <td className="nowrap">
+                              {t.status === "logged" && <span className="badge ok">business</span>}
+                              {t.status === "personal" && <span className="badge">personal</span>}
+                              {t.status === "ignored" && <span className="badge">not spending</span>}
+                              {t.status === "unreviewed" && <span className="badge warn">decide</span>}
+                              {(t.matchedExpenseId || t.matchedIncomeId) && (
+                                <Link className="small" style={{ marginLeft: 6 }} href={t.matchedExpenseId ? `/expenses/${t.matchedExpenseId}` : `/income/${t.matchedIncomeId}`}>
+                                  record →
                                 </Link>
-                              </div>
-                            )}
-                          </td>
-                          <td className="r nowrap">
-                            {t.status === "unreviewed" ? (
-                              reasonFor === t.id ? (
-                                <div className="reasons">
-                                  {QUICK_REASONS.map((r) => (
-                                    <button key={r} type="button" className="btn ghost small" disabled={busy === t.id} onClick={() => review(t.id, "ignored", r)}>
-                                      {r}
-                                    </button>
+                              )}
+                            </td>
+                            <td className="r nowrap">
+                              {reasonFor === t.id ? (
+                                <span className="reasons">
+                                  {NOT_SPENDING_REASONS.map((r) => (
+                                    <button key={r} type="button" className="btn ghost small" disabled={busy === t.id} onClick={() => review(t.id, "ignored", r)}>{r}</button>
                                   ))}
                                   <button type="button" className="btn ghost small" onClick={() => setReasonFor(null)}>cancel</button>
-                                </div>
-                              ) : (
-                                <span className="btnrow">
-                                  <button type="button" className="btn ghost small" disabled={busy === t.id} onClick={() => setReasonFor(t.id)}>
-                                    Set aside
-                                  </button>
-                                  <button type="button" className="btn small" disabled={busy === t.id} onClick={() => review(t.id, "logged")}>
-                                    Mark logged
-                                  </button>
                                 </span>
-                              )
-                            ) : (
-                              <button type="button" className="btn ghost small" disabled={busy === t.id} onClick={() => review(t.id, "unreviewed")}>
-                                Undo
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                              ) : t.status === "unreviewed" ? (
+                                <span className="btnrow">
+                                  <button type="button" className="btn ghost small" disabled={busy === t.id} onClick={() => review(t.id, "personal")}>Personal</button>
+                                  <button type="button" className="btn ghost small" disabled={busy === t.id} onClick={() => setReasonFor(t.id)}>Not spending</button>
+                                  <button type="button" className="btn small" disabled={busy === t.id} onClick={() => review(t.id, "logged")}>Business</button>
+                                </span>
+                              ) : (
+                                <button type="button" className="btn ghost small" disabled={busy === t.id} onClick={() => review(t.id, "unreviewed")}>Undo</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

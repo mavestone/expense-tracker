@@ -1,16 +1,26 @@
 import { api, json } from "@/lib/api";
 import { checkAgentAuth, agentApiEnabled } from "@/lib/agent-auth";
-import { autoMatch } from "@/lib/statements";
+import { autoMatch, triage, resetAutoDecisions } from "@/lib/statements";
 
 export const runtime = "nodejs";
 
-/** Re-run the matcher, e.g. after adding records that statement lines should link to. */
+/**
+ * Re-run triage and matching over a financial year.
+ *
+ * ?reset=1 clears previous automatic decisions first, leaving anything reviewed
+ * by hand alone — for when the rules themselves have changed.
+ */
 export const POST = api(
   async (req) => {
     if (!agentApiEnabled()) return json({ error: "Agent API not configured." }, { status: 503 });
     if (!checkAgentAuth(req)) return json({ error: "Invalid agent API key." }, { status: 401 });
-    const fy = new URL(req.url).searchParams.get("fy") || undefined;
-    return json({ matching: await autoMatch(fy) });
+    const p = new URL(req.url).searchParams;
+    const fy = p.get("fy") || undefined;
+
+    const reset = p.get("reset") === "1" ? await resetAutoDecisions(fy) : null;
+    const triaged = p.get("triage") === "0" ? null : await triage(fy);
+    const matching = p.get("match") === "0" ? null : await autoMatch(fy);
+    return json({ reset, triage: triaged, matching });
   },
   { auth: false }
 );
