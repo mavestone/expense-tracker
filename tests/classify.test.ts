@@ -145,3 +145,17 @@ describe("friends, refunds and currency moves", () => {
     expect(classify("ARMGARDT BRANDON LADISLAV | 30% Deposit").verdict).toBe("unsure");
   });
 });
+
+describe("merchant aliases", () => {
+  it("connects card descriptors to legal supplier names", () => {
+    expect(namesLookAlike("CLAUDE.AI SUBSCR,SAN FRANCISCO", "Anthropic, PBC")).toBe(true);
+    expect(namesLookAlike("Sqsp* Websit#196100645 New York Us", "Squarespace")).toBe(true);
+    expect(namesLookAlike("Google GSUITE_maveston", "Google Australia Pty Limited")).toBe(true);
+    expect(namesLookAlike("GYMAX office chair", "Temu (Gymax Limited)")).toBe(true);
+  });
+
+  it("still refuses unrelated pairs", () => {
+    expect(namesLookAlike("Tesco Stores", "Anthropic, PBC")).toBe(false);
+    expect(namesLookAlike("MTA*NYCT PAYGO", "Squarespace")).toBe(false);
+  });
+});

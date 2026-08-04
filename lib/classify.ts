@@ -112,9 +112,29 @@ export function nameTokens(s: string): Set<string> {
   );
 }
 
+/**
+ * Merchant descriptors rarely spell the supplier's legal name: a card shows
+ * "CLAUDE.AI SUBSCR" for Anthropic and "Sqsp*" for Squarespace. Each pair is a
+ * token that should be treated as equivalent.
+ */
+const ALIASES: [RegExp, string][] = [
+  [/\bclaude\b/i, "anthropic"],
+  [/\bsqsp\b/i, "squarespace"],
+  [/\bgsuite\b/i, "google"],
+  [/\bworkspace\b/i, "google"],
+  [/\belevenlabs\b/i, "eleven"],
+  [/\bkuycon\b/i, "kuycon"],
+  [/\bgymax\b/i, "temu"],
+  [/\bmcc\b/i, "temu"],
+];
+
 export function namesLookAlike(statementText: string, supplier: string): boolean {
   const a = nameTokens(statementText);
   const b = nameTokens(supplier);
+  for (const [re, token] of ALIASES) {
+    if (re.test(statementText)) a.add(token);
+    if (re.test(supplier)) b.add(token);
+  }
   if (a.size === 0 || b.size === 0) return false;
   for (const w of b) {
     if (a.has(w)) return true;

@@ -258,16 +258,22 @@ export async function autoMatch(fyLabel?: string) {
     const aud = t.audAmountCents ?? -1;
     const text = `${t.counterparty ?? ""} ${t.description}`;
 
+    // A foreign line carries no AUD figure, so there is nothing to compare it
+    // against. Fall back to the name and a tighter date window instead of
+    // refusing to match at all.
+    const noAud = t.audAmountCents == null;
     const amountAgrees = (recAud: number, recAmt: number, recCur: string) =>
+      noAud ||
       Math.abs(recAud - aud) <= MATCH_CENTS_TOLERANCE ||
       (recCur === t.currency && recAmt === t.amountCents);
+    const window = noAud ? 10 : MATCH_DAY_WINDOW;
 
     if (t.direction === "out") {
       const viable = expenses
         .filter((e) => !usedExpense.has(e.id))
         .filter((e) => namesLookAlike(text, e.supplierName))
         .filter((e) => amountAgrees(e.audAmountCents, e.originalAmountCents, e.originalCurrency))
-        .filter((e) => daysApart(e.dateIncurred, t.date) <= MATCH_DAY_WINDOW)
+        .filter((e) => daysApart(e.dateIncurred, t.date) <= window)
         .sort(
           (a, b) =>
             daysApart(a.dateIncurred, t.date) - daysApart(b.dateIncurred, t.date) ||
@@ -297,7 +303,7 @@ export async function autoMatch(fyLabel?: string) {
         .filter((r) => !usedIncome.has(r.id))
         .filter((r) => namesLookAlike(text, r.clientName))
         .filter((r) => amountAgrees(r.audAmountCents, r.originalAmountCents, r.originalCurrency))
-        .filter((r) => daysApart(r.datePaid ?? r.dateEarned, t.date) <= MATCH_DAY_WINDOW)
+        .filter((r) => daysApart(r.datePaid ?? r.dateEarned, t.date) <= window)
         .sort(
           (a, b) =>
             daysApart(a.datePaid ?? a.dateEarned, t.date) - daysApart(b.datePaid ?? b.dateEarned, t.date) ||
