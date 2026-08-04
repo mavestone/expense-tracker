@@ -114,3 +114,34 @@ describe("internal is the owner's own money and the account mechanics", () => {
     expect(classify("Emmerson Price | Dj decks").verdict).toBe("unsure");
   });
 });
+
+describe("friends, refunds and currency moves", () => {
+  it("files friends' transfers as personal", () => {
+    expect(classify("Hannah kate Leadbeatter O'Reilly").verdict).toBe("personal");
+    expect(classify("J Ekwealor | NOREF").verdict).toBe("personal");
+    expect(classify("D Farinha | Rent October").verdict).toBe("personal");
+    expect(classify("Chelsea Hatton Copeland | Uber reimbursement").verdict).toBe("personal");
+  });
+
+  it("files refunds as personal", () => {
+    expect(classify("IKEA | Refund").verdict).toBe("personal");
+    expect(classify("Orbit International | Refund").verdict).toBe("personal");
+  });
+
+  it("but never a refund from a business vendor", () => {
+    // this offsets a Canva expense; filing it personal would hide it
+    expect(classify("canva.com Canva | PAYPAL *CANVAPTYLIM | Refund").verdict).toBe("unsure");
+    expect(classify("Cutback.video | Refund").verdict).toBe("unsure");
+  });
+
+  it("treats Wise currency moves as internal", () => {
+    expect(classify("Moved | To AUD").verdict).toBe("internal");
+    expect(classify("To GBP | Funds").verdict).toBe("internal");
+    expect(classify("To EUR").verdict).toBe("internal");
+    expect(classify("To Savings").verdict).toBe("internal");
+  });
+
+  it("keeps Brandon Armgardt out of the friend sweep — he is a client", () => {
+    expect(classify("ARMGARDT BRANDON LADISLAV | 30% Deposit").verdict).toBe("unsure");
+  });
+});

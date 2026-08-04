@@ -25,6 +25,8 @@ export type Rule = { label: string; verdict: Verdict; test: RegExp };
 const INTERNAL: Rule[] = [
   // Named against the owner's actual savers so "Transfer from <someone else>" is not swept up here.
   { label: "Transfer between own accounts", verdict: "internal", test: /\b(transfer|forward(ed)?|move[dsr]?)\b[^|]{0,24}\b(savings|saver|safety|travel fund|spending)\b|\bround ?up\b|\bcover spending\b|\bbank@post deposit\b/i },
+  // Wise moves between the owner's own currency balances — no money leaves
+  { label: "Currency conversion", verdict: "internal", test: /\bto (aud|usd|gbp|eur|nzd|chf|sgd|jpy|cad|idr|try|pln|huf|vnd|kgs|sek|nok|dkk|savings)\b/i },
   { label: "Card repayment", verdict: "internal", test: /\b(qantas credit cards|bpay to: qantas|card payment thank ?you|payment received - thank you)\b/i },
   { label: "Own transfer", verdict: "internal", test: /\b(l ?b ?leslie|liam ?b(ranson)? ?leslie|liam leslie|wise australia pty)\b/i },
   { label: "ATO refund", verdict: "internal", test: /\bATO\d{9,}|\bATO\b.*direct credit/i },
@@ -48,8 +50,18 @@ const PERSONAL: Rule[] = [
   { label: "Fuel", verdict: "personal", test: /\b(united petroleum|bp connect|caltex|ampol|shell\b|7-eleven fuel|migrol|circle ?k fuel|petrol)/i },
   { label: "Days out", verdict: "personal", test: /\b(mini golf|kart track|adh entertainment|theme park|zoo\b|aquarium|museum|gallery|bowling|escape room|liberty cruise)/i },
   { label: "Family transfer", verdict: "personal", test: /\b(solomon leslie|elizabeth leslie|simone m leslie|david malcom leslie|david leslie)\b/i },
+  { label: "Friend transfer", verdict: "personal", test: /\b(hannah kate|leadbeatter|chelsea hatton|copeland|ekwealor|vithuran|sivakumar|farinha|camisan|patrick amgardt|jamie armgardt|nanni)\b/i },
+  { label: "Refund", verdict: "personal", test: /\brefund(ed)?\b/i },
   { label: "Cash withdrawal", verdict: "personal", test: /\b(atm|cash out|cash advance|international atm)/i },
 ];
+
+/**
+ * Vendors already known to be business. Never auto-classified, so that a refund
+ * from one of them is not swept into personal — a Canva refund offsets a Canva
+ * expense, it is not private spending.
+ */
+const BUSINESS_VENDORS =
+  /\b(adobe|google ?workspace|gsuite|anthropic|claude\.ai|elevenlabs|eleven labs|canva|lovable|godaddy|namecheap|squarespace|sqsp|openai|chatgpt|vercel|beeble|hyperagent|kirin|levee|cutback|dialpad|resemble|kuycon|figma|notion|dropbox|github|australian securities|auspost|australia post|australian postal|institute of data|sirui)\b/i;
 
 /**
  * Merchants that sell both business and personal goods. Never auto-classified —
@@ -67,6 +79,9 @@ export function classify(text: string): Classification {
   // merchant is — "Card checked — Apple" must not fall through to the ambiguous list.
   const check = INTERNAL.find((r) => r.label.startsWith("Card verification"))!;
   if (check.test.test(s)) return { verdict: "internal", label: check.label, rule: "card-check" };
+
+  // Known business vendors are always left for a decision or a match.
+  if (BUSINESS_VENDORS.test(s)) return { verdict: "unsure", label: null, rule: "business-vendor" };
 
   // Otherwise ambiguous retailers win: they are where business buys hide.
   if (AMBIGUOUS.test(s)) return { verdict: "unsure", label: null, rule: "ambiguous-retailer" };
