@@ -10,7 +10,7 @@ import type { ExpenseDto, MetaDto } from "@/lib/types";
 
 type Dashboard = {
   fy: string;
-  totals: { count: number; audCents: number; deductibleCents: number; claimableGstCents: number; capitalCount: number; capitalCents: number };
+  totals: { count: number; audCents: number; deductibleCents: number; claimableGstCents: number; blockedGstCents: number; capitalCount: number; capitalCents: number };
   income: { count: number; audCents: number; gstCents: number; netCents: number; outstandingCount: number; outstandingCents: number };
   alerts: { pendingDrafts: number; pendingFx: number; missingReceiptsImportant: number; missingReceiptsTotal: number; staleSubscriptions: number; gstInvoiceFlags: number; unpaidInvoices: number };
   recent: ExpenseDto[];
@@ -101,7 +101,14 @@ export default function HomePage() {
         <div className="stat">
           <div className="label">GST credits</div>
           <div className="value">{formatAUD(data.totals.claimableGstCents)}</div>
-          <div className="sub">claimable (1B){data.totals.capitalCount > 0 ? ` · ${data.totals.capitalCount} capital asset${data.totals.capitalCount === 1 ? "" : "s"}` : ""}</div>
+          <div className="sub">
+            claimable (1B){data.totals.capitalCount > 0 ? ` · ${data.totals.capitalCount} capital asset${data.totals.capitalCount === 1 ? "" : "s"}` : ""}
+            {(data.totals.blockedGstCents ?? 0) > 0 && (
+              <div style={{ color: "var(--warn)" }}>
+                {formatAUD(data.totals.blockedGstCents)} held back — no tax invoice
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

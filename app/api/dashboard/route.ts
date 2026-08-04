@@ -1,9 +1,10 @@
 import { api, json } from "@/lib/api";
 import { db, schema } from "@/lib/db";
-import { listExpenses } from "@/lib/expenses";
+import { listExpenses, receiptCountMap } from "@/lib/expenses";
 import { ensureRenewalDrafts, subscriptionOverview } from "@/lib/subscriptions";
 import { missingReceipts, gstSummary } from "@/lib/reports";
 import { currentFy } from "@/lib/fy";
+import { getSettings } from "@/lib/settings";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { applyBp } from "@/lib/money";
 
@@ -46,11 +47,34 @@ export const GET = api(async (req) => {
       .where(and(eq(schema.income.financialYear, fy), eq(schema.income.status, "active"), isNull(schema.income.datePaid))),
   ]);
 
+  const dashReceipts = await receiptCountMap(fyRows.map((r) => r.id));
+  const gstFlagCents = (await getSettings()).gst_receipt_flag_cents;
+
   const totals = {
     count: fyRows.length,
     audCents: fyRows.reduce((s, e) => s + e.audAmountCents, 0),
     deductibleCents: fyRows.reduce((s, e) => s + e.deductibleAudCents, 0),
-    claimableGstCents: fyRows.reduce((s, e) => s + (e.gstTreatment === "gst" ? applyBp(e.gstAmountCents, e.businessUseBp) : 0), 0),
+    // Match the BAS report: a GST purchase over the threshold with no tax
+    // invoice cannot be claimed at 1B, so it must not be counted here either.
+    claimableGstCents: fyRows.reduce(
+      (s, e) =>
+        s +
+        (e.gstTreatment === "gst" &&
+        !(e.audAmountCents > gstFlagCents && (dashReceipts.get(e.id) ?? 0) === 0)
+          ? applyBp(e.gstAmountCents, e.businessUseBp)
+          : 0),
+      0
+    ),
+    blockedGstCents: fyRows.reduce(
+      (s, e) =>
+        s +
+        (e.gstTreatment === "gst" &&
+        e.audAmountCents > gstFlagCents &&
+        (dashReceipts.get(e.id) ?? 0) === 0
+          ? applyBp(e.gstAmountCents, e.businessUseBp)
+          : 0),
+      0
+    ),
     capitalCount: fyRows.filter((e) => e.isCapital).length,
     capitalCents: fyRows.filter((e) => e.isCapital).reduce((s, e) => s + e.audAmountCents, 0),
   };
