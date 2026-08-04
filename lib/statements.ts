@@ -479,7 +479,11 @@ export async function triage(fyLabel?: string) {
   // Group by the decision so this is a couple of dozen statements, not a thousand.
   const buckets = new Map<string, { status: string; label: string; ids: string[] }>();
   for (const r of rows) {
-    const c = classify(`${r.counterparty ?? ""} ${r.description}`);
+    // a nil-value line moved no money — a card verification hold, not spending
+    const c =
+      r.amountCents === 0
+        ? { verdict: "internal" as const, label: "Zero value — no money moved" }
+        : classify(`${r.counterparty ?? ""} ${r.description}`);
     if (c.verdict === "unsure") continue;
     const status = c.verdict === "personal" ? "personal" : "ignored";
     const key = `${status}|${c.label}`;

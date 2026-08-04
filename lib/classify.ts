@@ -22,6 +22,7 @@ const INTERNAL: Rule[] = [
   { label: "Moving money about", verdict: "internal", test: /\b(transfer (from|to)|forward (from|to)|cover spending|bank@post deposit)\b/i },
   { label: "Family transfer", verdict: "internal", test: /\b(solomon leslie|elizabeth leslie|simone m leslie|david malcom leslie|david leslie)\b/i },
   { label: "ATO refund", verdict: "internal", test: /\bATO\d{9,}|\bATO\b.*direct credit/i },
+  { label: "Card verification — no money moved", verdict: "internal", test: /\bcard checked\b|\btemporary hold\b|\bpre-?auth(orisation)?\b/i },
   { label: "Dishonoured or reversed", verdict: "internal", test: /\b(dishonour|de dishonour|reversal|chargeback)\b/i },
 ];
 
