@@ -451,14 +451,16 @@ export async function resetAutoDecisions(fyLabel?: string) {
   const conds = [eq(schema.statementTransactions.matchSource, "auto")];
   if (fyLabel) conds.push(eq(schema.statementTransactions.fyLabel, fyLabel));
   const now = new Date().toISOString();
-  const rows = await d.select().from(schema.statementTransactions).where(and(...conds));
-  for (const r of rows) {
-    await d
-      .update(schema.statementTransactions)
-      .set({ status: "unreviewed", matchedExpenseId: null, matchedIncomeId: null, matchSource: null, ignoreReason: null, updatedAt: now })
-      .where(eq(schema.statementTransactions.id, r.id));
-  }
-  return { cleared: rows.length };
+  const [{ n }] = await d
+    .select({ n: sql<number>`count(*)` })
+    .from(schema.statementTransactions)
+    .where(and(...conds));
+  // one statement, not one per row — this runs against remote SQLite
+  await d
+    .update(schema.statementTransactions)
+    .set({ status: "unreviewed", matchedExpenseId: null, matchedIncomeId: null, matchSource: null, ignoreReason: null, updatedAt: now })
+    .where(and(...conds));
+  return { cleared: n };
 }
 
 /**
@@ -474,18 +476,30 @@ export async function triage(fyLabel?: string) {
   const rows = await d.select().from(schema.statementTransactions).where(and(...conds));
 
   const now = new Date().toISOString();
-  let personal = 0;
-  let internal = 0;
+  // Group by the decision so this is a couple of dozen statements, not a thousand.
+  const buckets = new Map<string, { status: string; label: string; ids: string[] }>();
   for (const r of rows) {
     const c = classify(`${r.counterparty ?? ""} ${r.description}`);
     if (c.verdict === "unsure") continue;
     const status = c.verdict === "personal" ? "personal" : "ignored";
-    await d
-      .update(schema.statementTransactions)
-      .set({ status, ignoreReason: c.label, matchSource: "auto", updatedAt: now })
-      .where(eq(schema.statementTransactions.id, r.id));
-    if (status === "personal") personal++;
-    else internal++;
+    const key = `${status}|${c.label}`;
+    const b = buckets.get(key) ?? { status, label: c.label ?? "", ids: [] };
+    b.ids.push(r.id);
+    buckets.set(key, b);
+  }
+
+  let personal = 0;
+  let internal = 0;
+  for (const b of buckets.values()) {
+    for (let i = 0; i < b.ids.length; i += 400) {
+      const chunk = b.ids.slice(i, i + 400);
+      await d
+        .update(schema.statementTransactions)
+        .set({ status: b.status, ignoreReason: b.label, matchSource: "auto", updatedAt: now })
+        .where(inArray(schema.statementTransactions.id, chunk));
+    }
+    if (b.status === "personal") personal += b.ids.length;
+    else internal += b.ids.length;
   }
   return { scanned: rows.length, personal, internal, left: rows.length - personal - internal };
 }
