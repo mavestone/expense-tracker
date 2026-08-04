@@ -213,8 +213,8 @@ export async function autoMatch(fyLabel?: string) {
   const now = new Date().toISOString();
 
   for (const t of txns) {
-    const aud = t.audAmountCents;
-    if (aud == null) continue;
+    // -1 never matches on the AUD leg, leaving the original-currency test to do the work
+    const aud = t.audAmountCents ?? -1;
     const lo = shiftDays(t.date, -MATCH_DAY_WINDOW);
     const hi = shiftDays(t.date, MATCH_DAY_WINDOW);
 
@@ -223,7 +223,9 @@ export async function autoMatch(fyLabel?: string) {
         (e) =>
           e.dateIncurred >= lo &&
           e.dateIncurred <= hi &&
-          Math.abs(e.audAmountCents - aud) <= MATCH_CENTS_TOLERANCE
+          (Math.abs(e.audAmountCents - aud) <= MATCH_CENTS_TOLERANCE ||
+            // foreign rows match far better on what the merchant actually charged
+            (e.originalCurrency === t.currency && e.originalAmountCents === t.amountCents))
       );
       if (hits.length === 1) {
         await d
@@ -236,7 +238,8 @@ export async function autoMatch(fyLabel?: string) {
       const hits = income.filter(
         (r) =>
           ((r.datePaid ?? r.dateEarned) >= lo && (r.datePaid ?? r.dateEarned) <= hi) &&
-          Math.abs(r.audAmountCents - aud) <= MATCH_CENTS_TOLERANCE
+          (Math.abs(r.audAmountCents - aud) <= MATCH_CENTS_TOLERANCE ||
+            (r.originalCurrency === t.currency && r.originalAmountCents === t.amountCents))
       );
       if (hits.length === 1) {
         await d
