@@ -104,7 +104,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
   display: flex; align-items: center; gap: 14px;
 }
 /* brand and the trailing actions both flex:1 so the nav sits centred between them */
-.topbar .brand { flex: 1; min-width: 0; font-weight: 750; font-size: 15.5px; letter-spacing: -0.01em; color: var(--ink); display: flex; align-items: center; gap: 9px; }
+.topbar .brand { flex: 1; min-width: 0; font-weight: 750; font-size: 14.5px; white-space: nowrap; letter-spacing: -0.01em; color: var(--ink); display: flex; align-items: center; gap: 9px; }
 .topbar .brand svg { width: 22px; height: 22px; border-radius: 6px; display: block; flex: none; }
 .topbar nav { display: flex; gap: 2px; justify-content: center; flex: none; }
 .topbar .actions { flex: 1; display: flex; justify-content: flex-end; }
@@ -449,7 +449,9 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 15px 0; }
 .apill .acount { font-size: 11.5px; font-variant-numeric: tabular-nums; background: var(--chip); border-radius: 999px; padding: 1px 8px; }
 .apill .apct { font-size: 11px; font-variant-numeric: tabular-nums; opacity: .75; }
 .apill.active { color: #fff; border-color: transparent; }
-.apill.all.active { background: var(--ink); }
+/* invert against the theme so the label never sits white-on-white */
+.apill.all.active { background: var(--ink); color: var(--bg); }
+.apill.all.active .acount { background: color-mix(in srgb, var(--bg) 28%, transparent); color: var(--bg); }
 .apill.c0.active { background: #0b6353; }
 .apill.c1.active { background: #2b5d9b; }
 .apill.c2.active { background: #8a5406; }
@@ -518,3 +520,16 @@ tr.done td { opacity: 0.62; }
   background: transparent; color: var(--ink-3); white-space: nowrap;
 }
 .acct .files .rmfile:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+
+/* Bulk review */
+.bulkbar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 9px 12px; margin-bottom: 10px;
+  background: var(--accent-soft); border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  position: sticky; top: 60px; z-index: 4;
+}
+.bulkbar .bcount { font-weight: 680; font-size: 13px; color: var(--accent-strong); margin-right: 4px; font-variant-numeric: tabular-nums; }
+table.csv td.ck, table.csv th.ck { width: 30px; padding-left: 10px; }
+table.csv td.ck input, table.csv th.ck input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+table.csv tbody tr.sel td { background: var(--accent-soft) !important; }

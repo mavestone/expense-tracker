@@ -34,7 +34,7 @@ const STATUS_TABS = [
   { id: "unreviewed", label: "Needs a decision" },
   { id: "logged", label: "Business" },
   { id: "personal", label: "Personal" },
-  { id: "ignored", label: "Not spending" },
+  { id: "ignored", label: "Internal & external transfers" },
   { id: "", label: "All" },
 ] as const;
 
@@ -49,7 +49,7 @@ const NOT_SPENDING_REASONS = [
 function Bar({ p }: { p: Progress }) {
   const pct = (n: number) => (p.total ? (n / p.total) * 100 : 0);
   return (
-    <div className="pbar" title={`${p.logged} business · ${p.personal} personal · ${p.ignored} not spending · ${p.unreviewed} to decide`}>
+    <div className="pbar" title={`${p.logged} business · ${p.personal} personal · ${p.ignored} transfers · ${p.unreviewed} to decide`}>
       <span className="seg logged" style={{ width: `${pct(p.logged)}%` }} />
       <span className="seg personal" style={{ width: `${pct(p.personal)}%` }} />
       <span className="seg ignored" style={{ width: `${pct(p.ignored)}%` }} />
@@ -69,6 +69,8 @@ export default function StatementsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reasonFor, setReasonFor] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkReason, setBulkReason] = useState(false);
 
   useEffect(() => {
     apiGet<Overview>(`/api/statements${fy ? `?fy=${fy}` : ""}`)
@@ -89,6 +91,7 @@ export default function StatementsPage() {
     if (minDollars) p.set("min", String(Math.round(Number(minDollars) * 100)));
     p.set("limit", "300");
     setPage(null);
+    setSelected(new Set());
     apiGet<TxnPage>(`/api/statements/transactions?${p}`).then(setPage).catch((e) => setError(e.message));
   }, [fy, accountId, status, direction, q, minDollars]);
 
@@ -105,6 +108,35 @@ export default function StatementsPage() {
       if (!res.ok) throw new Error((await res.json()).error ?? "Could not remove");
       apiGet<Overview>(`/api/statements${fy ? `?fy=${fy}` : ""}`).then(setOv).catch(() => {});
       loadTxns();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+
+  async function applyBulk(next: Txn["status"], ignoreReason?: string) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBusy("bulk");
+    try {
+      const res = await fetch("/api/statements/transactions/bulk", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids, status: next, ignoreReason }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Could not update");
+      setBulkReason(false);
+      loadTxns();
+      apiGet<Overview>(`/api/statements${fy ? `?fy=${fy}` : ""}`).then(setOv).catch(() => {});
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -178,7 +210,7 @@ export default function StatementsPage() {
                 <div className="revlegend">
                   <span><i className="dot logged" /> {shownProgress.logged} business</span>
                   <span><i className="dot personal" /> {shownProgress.personal} personal</span>
-                  <span><i className="dot ignored" /> {shownProgress.ignored} not spending</span>
+                  <span><i className="dot ignored" /> {shownProgress.ignored} transfers</span>
                   <span><i className="dot todo" /> {shownProgress.unreviewed} to decide</span>
                 </div>
               </div>
@@ -257,10 +289,42 @@ export default function StatementsPage() {
                   {page.totals.unconverted > 0 && ` · ${page.totals.unconverted} foreign line${page.totals.unconverted === 1 ? "" : "s"} not converted, excluded from these totals`}
                   {page.hasMore && " · showing the first 300"}
                 </div>
+                {selected.size > 0 && (
+                  <div className="bulkbar">
+                    <span className="bcount">{selected.size} selected</span>
+                    {bulkReason ? (
+                      <>
+                        {NOT_SPENDING_REASONS.map((r) => (
+                          <button key={r} type="button" className="btn ghost small" disabled={busy === "bulk"} onClick={() => applyBulk("ignored", r)}>{r}</button>
+                        ))}
+                        <button type="button" className="btn ghost small" onClick={() => setBulkReason(false)}>cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" className="btn ghost small" disabled={busy === "bulk"} onClick={() => applyBulk("personal")}>Personal</button>
+                        <button type="button" className="btn ghost small" disabled={busy === "bulk"} onClick={() => setBulkReason(true)}>Transfer</button>
+                        <button type="button" className="btn small" disabled={busy === "bulk"} onClick={() => applyBulk("logged")}>Business</button>
+                        <button type="button" className="btn ghost small" disabled={busy === "bulk"} onClick={() => applyBulk("unreviewed")}>Undo</button>
+                        <button type="button" className="btn ghost small" onClick={() => setSelected(new Set())}>Clear</button>
+                      </>
+                    )}
+                  </div>
+                )}
                 <div className="tablewrap">
                   <table className="data csv">
                     <thead>
                       <tr>
+                        <th className="ck">
+                          <input
+                            type="checkbox"
+                            aria-label="Select all shown"
+                            checked={page.transactions.length > 0 && selected.size === page.transactions.length}
+                            ref={(el) => { if (el) el.indeterminate = selected.size > 0 && selected.size < page.transactions.length; }}
+                            onChange={(e) =>
+                              setSelected(e.target.checked ? new Set(page.transactions.map((x) => x.id)) : new Set())
+                            }
+                          />
+                        </th>
                         <th>Date</th><th>Account</th><th>Description</th>
                         <th className="r">Amount</th><th className="r">AUD</th>
                         <th>Category</th><th className="r">Decide</th>
@@ -270,7 +334,10 @@ export default function StatementsPage() {
                       {page.transactions.map((t) => {
                         const acct = accounts.find((a) => a.id === t.accountId);
                         return (
-                          <tr key={t.id} className={t.status !== "unreviewed" ? "done" : ""}>
+                          <tr key={t.id} className={`${t.status !== "unreviewed" ? "done" : ""}${selected.has(t.id) ? " sel" : ""}`}>
+                            <td className="ck">
+                              <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} aria-label={`Select ${t.description}`} />
+                            </td>
                             <td className="nowrap mono">{t.date}</td>
                             <td className="nowrap muted small">{acct?.label ?? "—"}</td>
                             <td className="desc">
@@ -289,7 +356,7 @@ export default function StatementsPage() {
                             <td className="nowrap">
                               {t.status === "logged" && <span className="badge ok">business</span>}
                               {t.status === "personal" && <span className="badge">personal</span>}
-                              {t.status === "ignored" && <span className="badge">not spending</span>}
+                              {t.status === "ignored" && <span className="badge">transfer</span>}
                               {t.status === "unreviewed" && <span className="badge warn">decide</span>}
                               {(t.matchedExpenseId || t.matchedIncomeId) && (
                                 <Link className="small" style={{ marginLeft: 6 }} href={t.matchedExpenseId ? `/expenses/${t.matchedExpenseId}` : `/income/${t.matchedIncomeId}`}>
@@ -308,7 +375,7 @@ export default function StatementsPage() {
                               ) : t.status === "unreviewed" ? (
                                 <span className="btnrow">
                                   <button type="button" className="btn ghost small" disabled={busy === t.id} onClick={() => review(t.id, "personal")}>Personal</button>
-                                  <button type="button" className="btn ghost small" disabled={busy === t.id} onClick={() => setReasonFor(t.id)}>Not spending</button>
+                                  <button type="button" className="btn ghost small" disabled={busy === t.id} onClick={() => setReasonFor(t.id)}>Transfer</button>
                                   <button type="button" className="btn small" disabled={busy === t.id} onClick={() => review(t.id, "logged")}>Business</button>
                                 </span>
                               ) : (

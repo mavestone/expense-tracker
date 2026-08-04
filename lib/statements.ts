@@ -503,3 +503,50 @@ export async function triage(fyLabel?: string) {
   }
   return { scanned: rows.length, personal, internal, left: rows.length - personal - internal };
 }
+
+/** Apply one decision to many lines at once, for working through a backlog. */
+export async function bulkReview(
+  ids: string[],
+  input: { status: TxnStatus; ignoreReason?: string | null }
+) {
+  if (!ids.length) return { updated: 0 };
+  if (!["unreviewed", "logged", "personal", "ignored"].includes(input.status))
+    throw new ValidationError(["Status must be unreviewed, logged, personal or ignored."]);
+  if (input.status === "ignored" && !input.ignoreReason?.trim())
+    throw new ValidationError(["A reason is required to set lines aside."]);
+
+  const d = await db();
+  const now = new Date().toISOString();
+  const reason =
+    input.status === "ignored" || input.status === "personal" ? input.ignoreReason?.trim() || null : null;
+
+  let updated = 0;
+  for (let i = 0; i < ids.length; i += 400) {
+    const chunk = ids.slice(i, i + 400);
+    await d
+      .update(schema.statementTransactions)
+      .set({
+        status: input.status,
+        ignoreReason: reason,
+        matchSource: input.status === "unreviewed" ? null : "manual",
+        updatedAt: now,
+      })
+      .where(inArray(schema.statementTransactions.id, chunk));
+    updated += chunk.length;
+  }
+
+  await d.transaction(async (tx) => {
+    await writeAudit(tx, [
+      {
+        entityType: "statement_txn",
+        entityId: `bulk:${ids.length}`,
+        action: "update",
+        field: "status",
+        oldValue: null,
+        newValue: input.status,
+        note: reason ?? `${ids.length} lines`,
+      },
+    ]);
+  });
+  return { updated };
+}
