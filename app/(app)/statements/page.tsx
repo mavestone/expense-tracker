@@ -97,6 +97,21 @@ export default function StatementsPage() {
     return () => clearTimeout(t);
   }, [loadTxns, q]);
 
+  async function removeStatement(id: string, filename: string) {
+    if (!confirm(`Remove "${filename}" and its parsed lines? The tracker records it matched are untouched.`)) return;
+    setBusy(id);
+    try {
+      const res = await fetch(`/api/statements/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Could not remove");
+      apiGet<Overview>(`/api/statements${fy ? `?fy=${fy}` : ""}`).then(setOv).catch(() => {});
+      loadTxns();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function review(id: string, next: Txn["status"], ignoreReason?: string) {
     setBusy(id);
     try {
@@ -207,6 +222,18 @@ export default function StatementsPage() {
                       >
                         ⤓ {s.periodStart ? formatDateAU(s.periodStart).slice(0, 6) : "PDF"}
                       </a>
+                    ))}
+                    {accountId === a.id && a.statements.map((s) => (
+                      <button
+                        key={`rm-${s.id}`}
+                        type="button"
+                        className="rmfile"
+                        disabled={busy === s.id}
+                        title={`Remove ${s.filename}`}
+                        onClick={(e) => { e.stopPropagation(); removeStatement(s.id, s.filename); }}
+                      >
+                        ✕ {s.periodStart ? formatDateAU(s.periodStart).slice(0, 6) : s.filename.slice(0, 8)}
+                      </button>
                     ))}
                   </div>
                 )}

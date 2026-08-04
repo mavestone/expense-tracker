@@ -406,3 +406,18 @@ export async function getStatementFile(id: string) {
   const buf = await getReceiptBytes({ storageDriver: s.storageDriver, storageKey: s.storageKey });
   return { buffer: buf, filename: s.filename, mime: s.mime };
 }
+
+/** Remove a statement and its lines — for a file uploaded in error or parsed wrongly. */
+export async function deleteStatement(id: string) {
+  const d = await db();
+  const [s] = await d.select().from(schema.statements).where(eq(schema.statements.id, id));
+  if (!s) throw new NotFoundError("Statement not found");
+  const [{ n }] = await d
+    .select({ n: sql<number>`count(*)` })
+    .from(schema.statementTransactions)
+    .where(eq(schema.statementTransactions.statementId, id));
+  await d.delete(schema.statementTransactions).where(eq(schema.statementTransactions.statementId, id));
+  await d.delete(schema.statements).where(eq(schema.statements.id, id));
+  // The stored file is content-addressed and may be shared; it is left in place.
+  return { deleted: true, filename: s.filename, removedTransactions: n };
+}

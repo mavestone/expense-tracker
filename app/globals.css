@@ -473,3 +473,9 @@ tr.done td { opacity: 0.62; }
   .filters input[placeholder^="Search"] { flex: 1 1 100%; }
   .reasons { max-width: none; }
 }
+.acct .files .rmfile {
+  appearance: none; cursor: pointer; font: inherit; font-size: 11px;
+  padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line-2);
+  background: transparent; color: var(--ink-3); white-space: nowrap;
+}
+.acct .files .rmfile:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
