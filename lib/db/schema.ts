@@ -72,6 +72,16 @@ export const expenses = sqliteTable(
     assetName: text("asset_name"),
     effectiveLifeYears: text("effective_life_years"), // manual entry, decimal string
 
+    // Balancing adjustment event: set when a capital asset is sold, lost, stolen,
+    // destroyed or taken out of business use. Termination value is the proceeds,
+    // or the insurance/compensation received for a loss — nil where none was.
+    disposalDate: text("disposal_date"),
+    disposalReason: text("disposal_reason"), // sold | stolen | destroyed | scrapped | ceased_business_use
+    terminationValueCents: integer("termination_value_cents"),
+    // Written-down value immediately before the event; 0 once instant-written-off.
+    adjustableValueCents: integer("adjustable_value_cents"),
+    disposalNote: text("disposal_note"),
+
     paymentMethod: text("payment_method"),
     notes: text("notes"),
     financialYear: text("financial_year").notNull(), // derived from dateIncurred

@@ -58,8 +58,23 @@ type DepreciationReport = {
   assets: {
     id: string; assetName: string; purchaseDate: string; supplier: string; costAudCents: number;
     originalAmountCents: number; originalCurrency: string; businessUseBp: number;
+    businessPortionCents: number;
     effectiveLifeYears: string | null; financialYear: string; hasReceipt: boolean;
+    thresholdCents: number | null;
+    method: "immediate" | "pool" | "unknown";
+    deductionCents: number;
+    treatmentNote: string;
+    disposal: {
+      date: string; reason: string | null; terminationValueCents: number;
+      adjustableValueCents: number | null; note: string | null;
+      deductionCents: number; assessableCents: number;
+    } | null;
   }[];
+  totals: {
+    count: number; costCents: number; deductionCents: number;
+    balancingDeductionCents: number; balancingAssessableCents: number;
+    unknownTreatment: number;
+  };
 };
 
 type MissingReport = {
@@ -374,32 +389,91 @@ function ReportsInner() {
       {tab === "depreciation" && (
         <div className="card">
           <h2>Depreciation schedule — capital assets, FY {fy}</h2>
-          <p className="small muted mt0">Inputs for your accountant — this app deliberately does not calculate depreciation deductions. Effective life is your manual entry; your accountant will confirm it.</p>
+          <p className="small muted mt0">
+            Simplified depreciation for a small business entity. An asset costing under the instant
+            asset write-off threshold for its year is deductible in full at the business-use share;
+            anything at or above it goes to the small business pool at 15% in the first year and 30%
+            after. Effective life is your manual entry. Figures are working estimates — your
+            accountant confirms the treatment.
+          </p>
           {!dep ? <div className="empty"><span className="spin" /></div> : (
-            <div className="tablewrap">
-              <table className="data">
-                <thead>
-                  <tr><th>Asset</th><th>Purchased</th><th>Supplier</th><th className="r">Cost (AUD)</th><th className="r">Business use</th><th className="r">Effective life</th><th>Receipt</th></tr>
-                </thead>
-                <tbody>
-                  {dep.assets.map((a) => (
-                    <tr key={a.id}>
-                      <td><Link href={`/expenses/${a.id}`}>{a.assetName}</Link></td>
-                      <td className="nowrap">{formatDateAU(a.purchaseDate)}</td>
-                      <td>{a.supplier}</td>
-                      <td className="r">
-                        {formatAUD(a.costAudCents)}
-                        {a.originalCurrency !== "AUD" && <div className="muted small">{a.originalCurrency} {(a.originalAmountCents / 100).toFixed(2)}</div>}
-                      </td>
-                      <td className="r">{bpToPercentString(a.businessUseBp)}%</td>
-                      <td className="r">{a.effectiveLifeYears ? `${a.effectiveLifeYears} yrs` : <span className="badge warn">not set</span>}</td>
-                      <td>{a.hasReceipt ? <span className="badge ok">yes</span> : <span className="badge danger">missing</span>}</td>
-                    </tr>
-                  ))}
-                  {dep.assets.length === 0 && <tr><td colSpan={7} className="empty">No capital assets recorded in FY {fy}.</td></tr>}
-                </tbody>
-              </table>
-            </div>
+            <>
+              {dep.totals.unknownTreatment > 0 && (
+                <div className="alert warn">
+                  {dep.totals.unknownTreatment} asset{dep.totals.unknownTreatment > 1 ? "s" : ""} can&apos;t be
+                  worked out — no instant asset write-off threshold is set for that financial year.{" "}
+                  <Link href="/settings">Set it in Settings</Link> and these will calculate.
+                </div>
+              )}
+              <div className="tablewrap">
+                <table className="data">
+                  <thead>
+                    <tr><th>Asset</th><th>Purchased</th><th className="r">Cost (AUD)</th><th className="r">Business use</th><th>Treatment</th><th className="r">Deduction</th><th>Disposal</th><th>Receipt</th></tr>
+                  </thead>
+                  <tbody>
+                    {dep.assets.map((a) => (
+                      <tr key={a.id}>
+                        <td>
+                          <Link href={`/expenses/${a.id}`}>{a.assetName}</Link>
+                          <div className="muted small">{a.supplier}</div>
+                        </td>
+                        <td className="nowrap">{formatDateAU(a.purchaseDate)}</td>
+                        <td className="r">
+                          {formatAUD(a.costAudCents)}
+                          {a.originalCurrency !== "AUD" && <div className="muted small">{a.originalCurrency} {(a.originalAmountCents / 100).toFixed(2)}</div>}
+                        </td>
+                        <td className="r">
+                          {bpToPercentString(a.businessUseBp)}%
+                          <div className="muted small">{formatAUD(a.businessPortionCents)}</div>
+                        </td>
+                        <td>
+                          {a.method === "immediate" && <span className="badge ok">written off</span>}
+                          {a.method === "pool" && <span className="badge info">pool 15%/30%</span>}
+                          {a.method === "unknown" && <span className="badge warn">threshold not set</span>}
+                          <div className="muted small">
+                            {a.effectiveLifeYears ? `${a.effectiveLifeYears} yr life` : "life not set"}
+                          </div>
+                        </td>
+                        <td className="r">{a.deductionCents > 0 ? formatAUD(a.deductionCents) : "—"}</td>
+                        <td>
+                          {a.disposal ? (
+                            <>
+                              <span className="badge">{a.disposal.reason ?? "disposed"}</span>
+                              <div className="muted small">{formatDateAU(a.disposal.date)}</div>
+                              {a.disposal.deductionCents > 0 && (
+                                <div className="small">+{formatAUD(a.disposal.deductionCents)} deduction</div>
+                              )}
+                              {a.disposal.assessableCents > 0 && (
+                                <div className="small">{formatAUD(a.disposal.assessableCents)} assessable</div>
+                              )}
+                              {a.disposal.deductionCents === 0 && a.disposal.assessableCents === 0 && (
+                                <div className="muted small">no adjustment</div>
+                              )}
+                            </>
+                          ) : <span className="muted small">held</span>}
+                        </td>
+                        <td>{a.hasReceipt ? <span className="badge ok">yes</span> : <span className="badge danger">missing</span>}</td>
+                      </tr>
+                    ))}
+                    {dep.assets.length === 0 && <tr><td colSpan={8} className="empty">No capital assets recorded in FY {fy}.</td></tr>}
+                  </tbody>
+                  {dep.assets.length > 0 && (
+                    <tfoot>
+                      <tr>
+                        <td colSpan={4} className="r strong">Totals</td>
+                        <td className="muted small">{dep.totals.count} asset{dep.totals.count === 1 ? "" : "s"}</td>
+                        <td className="r strong">{formatAUD(dep.totals.deductionCents)}</td>
+                        <td className="small">
+                          {dep.totals.balancingDeductionCents > 0 && <div>+{formatAUD(dep.totals.balancingDeductionCents)} deduction</div>}
+                          {dep.totals.balancingAssessableCents > 0 && <div>{formatAUD(dep.totals.balancingAssessableCents)} assessable</div>}
+                        </td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}

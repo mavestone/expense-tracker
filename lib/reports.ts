@@ -4,6 +4,7 @@ import { applyBp } from "./money";
 import { fyQuarter, quarterLabel, type BasQuarter } from "./fy";
 import { getSettings } from "./settings";
 import { receiptCountMap } from "./expenses";
+import { explainTreatment, businessPortionCents, balancingAdjustment } from "./depreciation";
 
 /** Active (confirmed, non-void) expenses for an FY. Reports never include drafts or voids. */
 async function activeExpensesForFy(fy: string) {
@@ -133,6 +134,13 @@ export async function gstSummary(fy: string) {
 }
 
 /** Depreciation schedule inputs for the accountant — no deduction is calculated. */
+/**
+ * Capital assets with their simplified-depreciation treatment worked out, plus
+ * any balancing adjustment where the asset has been disposed of.
+ *
+ * The instant asset write-off threshold comes from fy_thresholds — when it has
+ * not been set the treatment is reported as "unknown" rather than assumed.
+ */
 export async function depreciationSchedule(fy?: string) {
   const d = await db();
   const conds = [eq(schema.expenses.status, "active"), eq(schema.expenses.isCapital, true)];
@@ -143,21 +151,66 @@ export async function depreciationSchedule(fy?: string) {
     .where(and(...conds))
     .orderBy(schema.expenses.dateIncurred);
   const receiptCounts = await receiptCountMap(rows.map((r) => r.id));
-  return rows.map((e) => ({
-    id: e.id,
-    assetName: e.assetName || e.description,
-    purchaseDate: e.dateIncurred,
-    supplier: e.supplierName,
-    costAudCents: e.audAmountCents,
-    originalAmountCents: e.originalAmountCents,
-    originalCurrency: e.originalCurrency,
-    businessUseBp: e.businessUseBp,
-    effectiveLifeYears: e.effectiveLifeYears,
-    financialYear: e.financialYear,
-    gstTreatment: e.gstTreatment,
-    gstAmountCents: e.gstAmountCents,
-    hasReceipt: (receiptCounts.get(e.id) ?? 0) > 0,
-  }));
+
+  const thresholdRows = await d.select().from(schema.fyThresholds);
+  const thresholdFor = new Map(thresholdRows.map((t) => [t.fyLabel, t.instantWriteoffCents]));
+
+  const assets = rows.map((e) => {
+    const threshold = thresholdFor.get(e.financialYear) ?? null;
+    const treatment = explainTreatment(e.audAmountCents, e.businessUseBp, threshold);
+
+    // Adjustable value defaults to nil for anything instant-written-off, which is
+    // what makes an uninsured theft of such an asset a no-op rather than a windfall.
+    const adjustable =
+      e.adjustableValueCents ?? (treatment.method === "immediate" ? 0 : null);
+    const balancing =
+      e.disposalDate && adjustable != null
+        ? balancingAdjustment(adjustable, e.terminationValueCents ?? 0, e.businessUseBp)
+        : null;
+
+    return {
+      id: e.id,
+      assetName: e.assetName || e.description,
+      purchaseDate: e.dateIncurred,
+      supplier: e.supplierName,
+      costAudCents: e.audAmountCents,
+      originalAmountCents: e.originalAmountCents,
+      originalCurrency: e.originalCurrency,
+      businessUseBp: e.businessUseBp,
+      businessPortionCents: businessPortionCents(e.audAmountCents, e.businessUseBp),
+      effectiveLifeYears: e.effectiveLifeYears,
+      financialYear: e.financialYear,
+      gstTreatment: e.gstTreatment,
+      gstAmountCents: e.gstAmountCents,
+      hasReceipt: (receiptCounts.get(e.id) ?? 0) > 0,
+      thresholdCents: threshold,
+      method: treatment.method,
+      deductionCents: treatment.deductionCents,
+      treatmentNote: treatment.note,
+      disposal: e.disposalDate
+        ? {
+            date: e.disposalDate,
+            reason: e.disposalReason,
+            terminationValueCents: e.terminationValueCents ?? 0,
+            adjustableValueCents: adjustable,
+            note: e.disposalNote,
+            deductionCents: balancing?.deductionCents ?? 0,
+            assessableCents: balancing?.assessableCents ?? 0,
+          }
+        : null,
+    };
+  });
+
+  const totals = {
+    count: assets.length,
+    costCents: assets.reduce((s, a) => s + a.costAudCents, 0),
+    deductionCents: assets.reduce((s, a) => s + a.deductionCents, 0),
+    balancingDeductionCents: assets.reduce((s, a) => s + (a.disposal?.deductionCents ?? 0), 0),
+    balancingAssessableCents: assets.reduce((s, a) => s + (a.disposal?.assessableCents ?? 0), 0),
+    unknownTreatment: assets.filter((a) => a.method === "unknown").length,
+  };
+
+  return { assets, totals };
 }
 
 /** Every non-void record without a current receipt attachment. */

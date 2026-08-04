@@ -224,11 +224,16 @@ describe("capital assets & reports", () => {
       effectiveLifeYears: "5",
     });
     const sched = await T.depreciationSchedule("2025-26");
-    const fx6 = sched.find((a) => a.assetName === "Sony FX6")!;
+    const fx6 = sched.assets.find((a) => a.assetName === "Sony FX6")!;
     expect(fx6).toBeTruthy();
     expect(fx6.costAudCents).toBe(989900);
     expect(fx6.businessUseBp).toBe(9000);
     expect(fx6.effectiveLifeYears).toBe("5");
+    // 90% of $9,899 is the deductible portion
+    expect(fx6.businessPortionCents).toBe(890910);
+    // no threshold is seeded, so the treatment must be reported as unknown
+    expect(fx6.method).toBe("unknown");
+    expect(sched.totals.unknownTreatment).toBe(1);
   });
 
   it("produces a BAS-mapped GST summary with the $82.50 invoice rule", async () => {
