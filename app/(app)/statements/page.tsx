@@ -41,6 +41,7 @@ const STATUS_TABS = [
 const NOT_SPENDING_REASONS = [
   "Own transfer between my accounts",
   "Card repayment",
+  "Reimbursement",
   "Refunded / reversed",
   "Family or gift",
   "Already counted elsewhere",
