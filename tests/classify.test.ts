@@ -68,7 +68,8 @@ describe("merchant name comparison", () => {
     expect(namesLookAlike("ADOBE, ADOBE.LY/ENAU", "Adobe Systems Software Ireland Ltd")).toBe(true);
     expect(namesLookAlike("ELEVENLABS.IO, NEW YORK", "Eleven Labs Inc.")).toBe(true);
     expect(namesLookAlike("Google GSUITE_maveston, Sydney", "Google Australia Pty Limited")).toBe(true);
-    expect(namesLookAlike("CLAUDE.AI SUBSCR,SAN FRANCISCO", "Anthropic, PBC")).toBe(false);
+    // the card descriptor never says "Anthropic" — the alias table bridges it
+    expect(namesLookAlike("CLAUDE.AI SUBSCR,SAN FRANCISCO", "Anthropic, PBC")).toBe(true);
   });
 
   it("rejects coincidences — the false matches that made this necessary", () => {
