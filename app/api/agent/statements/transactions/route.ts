@@ -27,6 +27,8 @@ export const GET = api(
         direction: t.direction,
         amount: `${t.currency} ${(t.amountCents / 100).toFixed(2)}`,
         status: t.status,
+        linked: Boolean(t.matchedExpenseId || t.matchedIncomeId),
+        counterparty: t.counterparty,
         reason: t.ignoreReason,
         source: t.matchSource,
       })),
