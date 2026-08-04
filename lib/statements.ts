@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { db, schema } from "./db";
 import { financialYear, isValidIsoDate } from "./fy";
 import { getStorage, sha256Hex, getReceiptBytes } from "./storage";
@@ -212,7 +212,17 @@ export async function ingestStatement(input: {
  */
 export async function autoMatch(fyLabel?: string) {
   const d = await db();
-  const conds = [eq(schema.statementTransactions.status, "unreviewed")];
+  // Unreviewed lines, plus any already marked business that never got linked to
+  // their record — a line ticked by hand still deserves the link back.
+  const scope = or(
+    eq(schema.statementTransactions.status, "unreviewed"),
+    and(
+      eq(schema.statementTransactions.status, "logged"),
+      isNull(schema.statementTransactions.matchedExpenseId),
+      isNull(schema.statementTransactions.matchedIncomeId)
+    )
+  )!;
+  const conds = [scope];
   if (fyLabel) conds.push(eq(schema.statementTransactions.fyLabel, fyLabel));
   const txns = await d.select().from(schema.statementTransactions).where(and(...conds));
 
@@ -244,7 +254,12 @@ export async function autoMatch(fyLabel?: string) {
       if (named.length === 1) {
         await d
           .update(schema.statementTransactions)
-          .set({ status: "logged", matchedExpenseId: named[0].id, matchSource: "auto", updatedAt: now })
+          .set({
+            status: "logged",
+            matchedExpenseId: named[0].id,
+            matchSource: t.matchSource ?? "auto",
+            updatedAt: now,
+          })
           .where(eq(schema.statementTransactions.id, t.id));
         matched++;
       }
@@ -259,7 +274,12 @@ export async function autoMatch(fyLabel?: string) {
       if (named.length === 1) {
         await d
           .update(schema.statementTransactions)
-          .set({ status: "logged", matchedIncomeId: named[0].id, matchSource: "auto", updatedAt: now })
+          .set({
+            status: "logged",
+            matchedIncomeId: named[0].id,
+            matchSource: t.matchSource ?? "auto",
+            updatedAt: now,
+          })
           .where(eq(schema.statementTransactions.id, t.id));
         matched++;
       }

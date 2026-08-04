@@ -41,7 +41,9 @@ export const GET = api(async (req) => {
     d
       .select({ n: sql<number>`count(*)`, total: sql<number>`coalesce(sum(${schema.income.audAmountCents}), 0)` })
       .from(schema.income)
-      .where(and(eq(schema.income.status, "active"), isNull(schema.income.datePaid))),
+      // scope to the selected year — unpaid invoices from a later FY were being
+      // reported against whichever year was on screen
+      .where(and(eq(schema.income.financialYear, fy), eq(schema.income.status, "active"), isNull(schema.income.datePaid))),
   ]);
 
   const totals = {
