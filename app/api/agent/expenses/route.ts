@@ -30,6 +30,12 @@ export const GET = api(
       description: e.description,
       originalAmount: `${e.originalCurrency} ${(e.originalAmountCents / 100).toFixed(2)}`,
       audAmount: (e.audAmountCents / 100).toFixed(2),
+      // what actually reaches the return: gross less private use, and the GST
+      // credit separately so the two are never conflated
+      businessUsePct: (e.businessUseBp / 100).toFixed(0),
+      deductibleAud: (e.deductibleAudCents / 100).toFixed(2),
+      gstTreatment: e.gstTreatment,
+      gstAud: (e.gstAmountCents / 100).toFixed(2),
       status: e.status,
       source: e.source,
       receiptCount: e.receiptCount,
