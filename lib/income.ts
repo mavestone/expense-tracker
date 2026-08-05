@@ -345,3 +345,30 @@ export async function incomeByQuarter(fy: string) {
   }
   return q;
 }
+
+/**
+ * Append a line to an income record's notes.
+ *
+ * Deliberately narrow: it touches the notes column and nothing else. The full
+ * updateIncome path re-derives FX and would risk moving a frozen rate — and a
+ * frozen rate is the whole point of the record.
+ */
+export async function appendIncomeNote(id: string, text: string) {
+  const existing = await getIncome(id);
+  if (!existing) throw new NotFoundError("Income record not found");
+  if (!text?.trim()) throw new ValidationError(["Note text is required."]);
+  const note = text.trim();
+  const next = existing.notes ? `${existing.notes}\n\n${note}` : note;
+
+  const dbi = await db();
+  await dbi.transaction(async (tx) => {
+    await tx
+      .update(schema.income)
+      .set({ notes: next, updatedAt: new Date().toISOString() })
+      .where(eq(schema.income.id, id));
+    await writeAudit(tx, [
+      { entityType: "income", entityId: id, action: "update", field: "notes", oldValue: existing.notes, newValue: note },
+    ]);
+  });
+  return (await getIncome(id))!;
+}
