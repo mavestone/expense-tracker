@@ -7,6 +7,7 @@ import { apiGet } from "@/lib/client";
 import { formatAUD, bpToPercentString } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 import type { MetaDto } from "@/lib/types";
+import FyClosePanel from "@/components/FyClosePanel";
 
 type Tab = "profit" | "category" | "gst" | "depreciation" | "missing";
 
@@ -150,6 +151,8 @@ function ReportsInner() {
           </button>
         ))}
       </div>
+
+      <FyClosePanel fy={fy} />
 
       <div className="card mb2">
         <h2>Exports</h2>

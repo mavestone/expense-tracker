@@ -442,3 +442,54 @@ export const invoiceLines = sqliteTable(
   },
   (t) => [index("idx_invoice_lines_invoice").on(t.invoiceId)]
 );
+
+/**
+ * Closing a financial year off. Records that the return has been lodged and
+ * what it was lodged as, so the figures an amendment would have to reconcile
+ * to are held next to the ledger rather than in a person's memory.
+ *
+ * Finalising does not lock anything — a year can legitimately need an amended
+ * return, and a system that made that hard would just be worked around. It
+ * warns instead, on every record dated inside a closed year.
+ */
+export const fyClosures = sqliteTable(
+  "fy_closures",
+  {
+    id: text("id").primaryKey(),
+    fyLabel: text("fy_label").notNull(),
+    finalisedAt: text("finalised_at").notNull(),
+    lodgedDate: text("lodged_date"),
+    atoReceipt: text("ato_receipt"),
+    taxableIncomeCents: integer("taxable_income_cents"),
+    taxPayableCents: integer("tax_payable_cents"),
+    note: text("note"),
+    // Set when a finalised year is deliberately reopened; the row is kept.
+    reopenedAt: text("reopened_at"),
+    reopenedReason: text("reopened_reason"),
+  },
+  (t) => [uniqueIndex("uq_fy_closures_fy").on(t.fyLabel)]
+);
+
+/**
+ * Working papers attached to a financial year rather than to one record — a
+ * PSI file note, a lodgement receipt, an accountant's letter. Same immutability
+ * contract as receipts: content-addressed, never overwritten.
+ */
+export const fyDocuments = sqliteTable(
+  "fy_documents",
+  {
+    id: text("id").primaryKey(),
+    fyLabel: text("fy_label").notNull(),
+    kind: text("kind").notNull().default("working_paper"),
+    title: text("title").notNull(),
+    description: text("description"),
+    originalFilename: text("original_filename").notNull(),
+    mime: text("mime").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    storageDriver: text("storage_driver").notNull(),
+    storageKey: text("storage_key").notNull(),
+    uploadedAt: text("uploaded_at").notNull(),
+  },
+  (t) => [index("idx_fy_docs_fy").on(t.fyLabel)]
+);

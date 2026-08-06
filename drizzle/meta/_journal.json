@@ -43,6 +43,13 @@
       "when": 1785975642723,
       "tag": "0005_regular_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1786017460362,
+      "tag": "0006_fair_paibok",
+      "breakpoints": true
     }
   ]
 }
