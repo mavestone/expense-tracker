@@ -1,136 +1,249 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  Area,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { formatAUD } from "@/lib/money";
 
-export type TrendMonth = { key: string; label: string; incomeCents: number; expenseCents: number; netCents: number };
+export type TrendMonth = {
+  key: string;
+  label: string;
+  incomeCents: number;
+  expenseCents: number;
+  netCents: number;
+};
 
-const W = 720;
-const H = 260;
-const PAD = { top: 18, right: 14, bottom: 30, left: 58 };
+type Row = TrendMonth & { income: number; expense: number; net: number };
 
-/** A "nice" axis maximum — 1/2/5 × 10ⁿ — so gridline labels are readable numbers. */
-function niceCeil(v: number): number {
-  if (v <= 0) return 100000; // $1,000 floor keeps an empty chart from collapsing
-  const mag = Math.pow(10, Math.floor(Math.log10(v)));
-  const n = v / mag;
-  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
-  return step * mag;
-}
-
-function path(points: { x: number; y: number }[]): string {
-  return points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+/**
+ * Axis labels in dollars.
+ *
+ * Rounding to whole thousands is wrong here: recharts happily picks ticks at
+ * 1500 and 4500, and rounding turns the scale into 0, 2k, 3k, 5k, 6k — an axis
+ * that is not merely ugly but untrue. Keep one decimal when the tick is not a
+ * whole thousand.
+ */
+function axisTick(v: number): string {
+  if (v === 0) return "$0";
+  const neg = v < 0 ? "-" : "";
+  const a = Math.abs(v);
+  if (a < 1000) return `${neg}$${Math.round(a)}`;
+  const k = a / 1000;
+  return `${neg}$${k % 1 === 0 ? k : k.toFixed(1)}k`;
 }
 
 /**
  * Income against deductible spend across a financial year.
  *
- * Hand-drawn SVG rather than a charting library: the whole app is plain CSS
- * with themed custom properties, and a library would arrive with its own
- * styling model to fight. Both series share one axis so the gap between them
- * is the profit, read directly off the chart.
+ * Recharts handles the geometry; every colour comes from the app's CSS custom
+ * properties rather than a palette of its own, so the chart follows the theme
+ * into dark mode instead of having to be re-themed alongside it.
  */
 export default function TrendChart({ months }: { months: TrendMonth[] }) {
-  const [hover, setHover] = useState<number | null>(null);
+  const [active, setActive] = useState<Row | null>(null);
 
-  const geom = useMemo(() => {
-    const max = niceCeil(Math.max(...months.flatMap((m) => [m.incomeCents, m.expenseCents]), 0));
-    const iw = W - PAD.left - PAD.right;
-    const ih = H - PAD.top - PAD.bottom;
-    const x = (i: number) => PAD.left + (months.length <= 1 ? iw / 2 : (i / (months.length - 1)) * iw);
-    const y = (c: number) => PAD.top + ih - (c / max) * ih;
+  const { data, hasData, totals, peak, showPeakRule } = useMemo(() => {
+    const data: Row[] = months.map((m) => ({
+      ...m,
+      income: m.incomeCents / 100,
+      expense: m.expenseCents / 100,
+      net: m.netCents / 100,
+    }));
+    const incomeCents = months.reduce((s, m) => s + m.incomeCents, 0);
+    const expenseCents = months.reduce((s, m) => s + m.expenseCents, 0);
+    // The best month is worth marking — it is the one the owner asks about.
+    const peakIdx = data.reduce((bi, r, i) => (r.income > data[bi].income ? i : bi), 0);
+    const peak = data[peakIdx];
+    // Only mark an interior month — on the first or last the rule sits on the
+    // plot edge and reads as a border.
+    const showPeakRule = peak && peak.income > 0 && peakIdx > 0 && peakIdx < data.length - 1;
     return {
-      max,
-      x,
-      y,
-      baseline: PAD.top + ih,
-      income: months.map((m, i) => ({ x: x(i), y: y(m.incomeCents) })),
-      expense: months.map((m, i) => ({ x: x(i), y: y(m.expenseCents) })),
-      ticks: [0, 0.25, 0.5, 0.75, 1].map((f) => ({ v: max * f, y: y(max * f) })),
+      data,
+      hasData: months.some((m) => m.incomeCents > 0 || m.expenseCents > 0),
+      totals: { incomeCents, expenseCents, netCents: incomeCents - expenseCents },
+      peak: peak && peak.income > 0 ? peak : null,
+      showPeakRule,
     };
   }, [months]);
 
-  const active = hover != null ? months[hover] : null;
-  const hasData = months.some((m) => m.incomeCents > 0 || m.expenseCents > 0);
+  const netPositive = totals.netCents >= 0;
+  const marginPct = totals.incomeCents > 0 ? (totals.netCents / totals.incomeCents) * 100 : 0;
+  const TrendIcon = totals.netCents === 0 ? Minus : netPositive ? TrendingUp : TrendingDown;
 
   return (
     <div className="trend">
+      <div className="trend-head">
+        <div>
+          <div className="trend-label">Net for the year</div>
+          <div className="trend-figure">
+            <span className="trend-amount">{formatAUD(totals.netCents)}</span>
+            {totals.incomeCents > 0 && (
+              <span className={`trend-delta ${netPositive ? "up" : "down"}`}>
+                <TrendIcon size={15} strokeWidth={2.4} />
+                {marginPct.toFixed(0)}% margin
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="trend-stats">
+          <div>
+            <span className="k">Income</span>
+            <span className="v income">{formatAUD(totals.incomeCents)}</span>
+          </div>
+          <div>
+            <span className="k">Spend</span>
+            <span className="v expense">{formatAUD(totals.expenseCents)}</span>
+          </div>
+          <div>
+            <span className="k">Best month</span>
+            <span className="v">{peak ? `${peak.label} · ${formatAUD(peak.incomeCents)}` : "—"}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="trend-plot">
+        {hasData ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart
+              data={data}
+              margin={{ top: 14, right: 8, left: 4, bottom: 4 }}
+              // recharts 3 hands back an index rather than the payload here.
+              onMouseMove={(s) => {
+                const i = typeof s?.activeIndex === "number" ? s.activeIndex : Number(s?.activeIndex);
+                setActive(Number.isInteger(i) && i >= 0 && i < data.length ? data[i] : null);
+              }}
+              onMouseLeave={() => setActive(null)}
+            >
+              <defs>
+                <linearGradient id="incomeArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.26} />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="expenseArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--warn)" stopOpacity={0.14} />
+                  <stop offset="100%" stopColor="var(--warn)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+
+              <CartesianGrid stroke="var(--line)" strokeDasharray="3 7" vertical={false} />
+
+              <XAxis
+                dataKey="label"
+                axisLine={false}
+                tickLine={false}
+                tickMargin={12}
+                tick={{ fontSize: 11.5, fill: "var(--ink-3)" }}
+                interval="preserveStartEnd"
+                minTickGap={4}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tickMargin={8}
+                width={60}
+                tick={{ fontSize: 11.5, fill: "var(--ink-3)" }}
+                tickFormatter={axisTick}
+              />
+
+              {showPeakRule && peak && (
+                <ReferenceLine
+                  x={peak.label}
+                  stroke="var(--accent)"
+                  strokeDasharray="3 4"
+                  strokeOpacity={0.5}
+                  strokeWidth={1}
+                />
+              )}
+
+              <Tooltip
+                cursor={{ stroke: "var(--line-2)", strokeDasharray: "3 3", strokeWidth: 1 }}
+                content={<TrendTooltip />}
+                animationDuration={120}
+              />
+
+              <Area
+                type="linear"
+                dataKey="expense"
+                stroke="none"
+                fill="url(#expenseArea)"
+                isAnimationActive={false}
+              />
+              <Area type="linear" dataKey="income" stroke="none" fill="url(#incomeArea)" isAnimationActive={false} />
+
+              <Line
+                type="linear"
+                dataKey="expense"
+                stroke="var(--warn)"
+                strokeWidth={2}
+                strokeDasharray="5 4"
+                dot={false}
+                activeDot={{ r: 4.5, fill: "var(--warn)", stroke: "var(--surface)", strokeWidth: 2 }}
+                isAnimationActive={false}
+              />
+              <Line
+                type="linear"
+                dataKey="income"
+                stroke="var(--accent)"
+                strokeWidth={2.4}
+                dot={false}
+                activeDot={{ r: 5, fill: "var(--accent)", stroke: "var(--surface)", strokeWidth: 2.5 }}
+                isAnimationActive={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="empty" style={{ padding: "72px 10px" }}>
+            No income or expenses recorded for this year yet.
+          </div>
+        )}
+      </div>
+
       <div className="trend-legend">
         <span><i className="swatch income" /> Income</span>
         <span><i className="swatch expense" /> Deductible spend</span>
         {active && (
           <span className="trend-readout">
-            <b>{active.label}</b>
-            {" · "}in {formatAUD(active.incomeCents)}
-            {" · "}out {formatAUD(active.expenseCents)}
-            {" · "}
-            <b style={{ color: active.netCents >= 0 ? "var(--ok)" : "var(--danger)" }}>
-              net {formatAUD(active.netCents)}
+            {active.label}: net <b style={{ color: active.netCents >= 0 ? "var(--ok)" : "var(--danger)" }}>
+              {formatAUD(active.netCents)}
             </b>
           </span>
         )}
       </div>
+    </div>
+  );
+}
 
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Income and deductible spend by month" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="incomeFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--ok)" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="var(--ok)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
+type TooltipPayload = { payload: Row }[];
 
-        {geom.ticks.map((t, i) => (
-          <g key={i}>
-            <line x1={PAD.left} y1={t.y} x2={W - PAD.right} y2={t.y} className="grid" />
-            <text x={PAD.left - 9} y={t.y + 4} className="axis r" textAnchor="end">
-              {t.v >= 100000 ? `$${Math.round(t.v / 100000)}k` : `$${Math.round(t.v / 100)}`}
-            </text>
-          </g>
-        ))}
-
-        {months.map((m, i) => (
-          <text key={m.key} x={geom.x(i)} y={H - 9} className="axis" textAnchor="middle">
-            {m.label}
-          </text>
-        ))}
-
-        {hasData && (
-          <>
-            <path d={`${path(geom.income)} L${geom.income.at(-1)!.x},${geom.baseline} L${geom.income[0].x},${geom.baseline} Z`} fill="url(#incomeFill)" />
-            <path d={path(geom.expense)} className="line expense" />
-            <path d={path(geom.income)} className="line income" />
-          </>
-        )}
-
-        {hover != null && (
-          <g>
-            <line x1={geom.x(hover)} y1={PAD.top} x2={geom.x(hover)} y2={geom.baseline} className="cursor" />
-            <circle cx={geom.income[hover].x} cy={geom.income[hover].y} r="4.5" className="dot income" />
-            <circle cx={geom.expense[hover].x} cy={geom.expense[hover].y} r="4.5" className="dot expense" />
-          </g>
-        )}
-
-        {/* One hit zone per month — a band is far easier to hit than a 4px dot,
-            and it works the same on a phone as with a mouse. */}
-        {months.map((m, i) => {
-          const half = (W - PAD.left - PAD.right) / Math.max(1, (months.length - 1) * 2);
-          return (
-            <rect
-              key={m.key}
-              x={geom.x(i) - half}
-              y={PAD.top}
-              width={half * 2}
-              height={geom.baseline - PAD.top}
-              fill="transparent"
-              onMouseEnter={() => setHover(i)}
-              onTouchStart={() => setHover(i)}
-              onMouseLeave={() => setHover((h) => (h === i ? null : h))}
-            />
-          );
-        })}
-      </svg>
-
-      {!hasData && <p className="muted small mt1">No income or expenses recorded for this year yet.</p>}
+function TrendTooltip({ active, payload }: { active?: boolean; payload?: TooltipPayload }) {
+  if (!active || !payload?.length) return null;
+  const r = payload[0].payload;
+  return (
+    <div className="charttip">
+      <div className="charttip-head">{r.label}</div>
+      <div className="charttip-row">
+        <span><i className="swatch income" /> Income</span>
+        <b>{formatAUD(r.incomeCents)}</b>
+      </div>
+      <div className="charttip-row">
+        <span><i className="swatch expense" /> Spend</span>
+        <b>{formatAUD(r.expenseCents)}</b>
+      </div>
+      <div className="charttip-row net">
+        <span>Net</span>
+        <b style={{ color: r.netCents >= 0 ? "var(--ok)" : "var(--danger)" }}>{formatAUD(r.netCents)}</b>
+      </div>
     </div>
   );
 }
