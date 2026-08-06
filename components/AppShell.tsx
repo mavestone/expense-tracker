@@ -3,8 +3,15 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-const NAV = [
-  { href: "/", label: "Home" },
+/**
+ * Two sections, one system. **Tax** is the compliance ledger — everything that
+ * feeds a return or a BAS. **Invoicing** is the client-facing side that raises
+ * the documents and posts them into that ledger. They are separated in the nav
+ * because they are used at different times, not because they hold different
+ * data: an invoice marked sent becomes an income record immediately.
+ */
+const TAX_NAV = [
+  { href: "/", label: "Overview" },
   { href: "/expenses", label: "Expenses" },
   { href: "/income", label: "Income" },
   { href: "/reports", label: "Reports" },
@@ -12,6 +19,14 @@ const NAV = [
   { href: "/audit", label: "Audit" },
   { href: "/settings", label: "Settings" },
 ];
+
+const INVOICE_NAV = [
+  { href: "/invoices", label: "Invoices" },
+  { href: "/clients", label: "Clients" },
+  { href: "/branding", label: "Branding" },
+];
+
+const INVOICING_ROOTS = ["/invoices", "/clients", "/branding"];
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -24,11 +39,14 @@ const ICONS: Record<string, React.ReactNode> = {
   Expenses: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
   ),
-  Subscriptions: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 9a8 8 0 0 1 14.5-3M20 15a8 8 0 0 1-14.5 3" /><path d="M18 2v4h-4M6 22v-4h4" /></svg>
-  ),
   Income: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 20V4" /><path d="M6 10l6-6 6 6" /><path d="M4 21h16" /></svg>
+  ),
+  Invoices: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" /><path d="M9 8h6M9 12h6" /></svg>
+  ),
+  Clients: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M16 11a3 3 0 1 0 0-6" /><path d="M18 20c0-2.6-1-4.4-2.6-5.3" /></svg>
   ),
   More: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
@@ -44,7 +62,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }
 
-  const moreActive = ["/reports", "/statements", "/import", "/audit", "/settings", "/subscriptions"].some((h) => pathname.startsWith(h));
+  const inInvoicing = INVOICING_ROOTS.some((r) => pathname.startsWith(r));
+  const nav = inInvoicing ? INVOICE_NAV : TAX_NAV;
+  const moreActive = ["/reports", "/statements", "/import", "/audit", "/settings", "/subscriptions"].some((h) =>
+    pathname.startsWith(h)
+  );
 
   return (
     <div className="shell">
@@ -57,13 +79,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </svg>
           Mavestone Expense Clerk
         </Link>
-        <nav>
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className={isActive(pathname, n.href) ? "active" : ""}>
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+
+        <div className="sectionswitch" role="group" aria-label="Section">
+          <Link href="/" className={!inInvoicing ? "active" : ""} aria-current={!inInvoicing ? "page" : undefined}>
+            Tax
+          </Link>
+          <Link href="/invoices" className={inInvoicing ? "active" : ""} aria-current={inInvoicing ? "page" : undefined}>
+            Invoicing
+          </Link>
+        </div>
+
         <span className="actions">
           <button className="btn ghost small" onClick={logout}>
             Lock
@@ -71,29 +96,63 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </span>
       </header>
 
+      <nav className="subnav" aria-label={inInvoicing ? "Invoicing" : "Tax"}>
+        <div className="subnav-inner">
+          {nav.map((n) => (
+            <Link key={n.href} href={n.href} className={isActive(pathname, n.href) ? "active" : ""}>
+              {n.label}
+            </Link>
+          ))}
+        </div>
+      </nav>
+
       <main className="main">{children}</main>
 
-      <nav className="bottomnav">
-        <Link href="/" className={pathname === "/" ? "active" : ""}>
-          {ICONS.Home}
-          Home
-        </Link>
-        <Link href="/expenses" className={pathname.startsWith("/expenses") && pathname !== "/expenses/new" ? "active" : ""}>
-          {ICONS.Expenses}
-          Expenses
-        </Link>
-        <Link href="/expenses/new" className="add" aria-label="Add expense">
-          <span className="plus">+</span>
-        </Link>
-        <Link href="/income" className={pathname.startsWith("/income") ? "active" : ""}>
-          {ICONS.Income}
-          Income
-        </Link>
-        <Link href="/reports" className={moreActive ? "active" : ""}>
-          {ICONS.More}
-          More
-        </Link>
-      </nav>
+      {inInvoicing ? (
+        <nav className="bottomnav">
+          <Link href="/" className="">
+            {ICONS.Home}
+            Tax
+          </Link>
+          <Link href="/invoices" className={pathname.startsWith("/invoices") && pathname !== "/invoices/new" ? "active" : ""}>
+            {ICONS.Invoices}
+            Invoices
+          </Link>
+          <Link href="/invoices/new" className="add" aria-label="New invoice">
+            <span className="plus">+</span>
+          </Link>
+          <Link href="/clients" className={pathname.startsWith("/clients") ? "active" : ""}>
+            {ICONS.Clients}
+            Clients
+          </Link>
+          <Link href="/branding" className={pathname.startsWith("/branding") ? "active" : ""}>
+            {ICONS.More}
+            Branding
+          </Link>
+        </nav>
+      ) : (
+        <nav className="bottomnav">
+          <Link href="/" className={pathname === "/" ? "active" : ""}>
+            {ICONS.Home}
+            Home
+          </Link>
+          <Link href="/expenses" className={pathname.startsWith("/expenses") && pathname !== "/expenses/new" ? "active" : ""}>
+            {ICONS.Expenses}
+            Expenses
+          </Link>
+          <Link href="/expenses/new" className="add" aria-label="Add expense">
+            <span className="plus">+</span>
+          </Link>
+          <Link href="/income" className={pathname.startsWith("/income") ? "active" : ""}>
+            {ICONS.Income}
+            Income
+          </Link>
+          <Link href="/reports" className={moreActive ? "active" : ""}>
+            {ICONS.More}
+            More
+          </Link>
+        </nav>
+      )}
     </div>
   );
 }

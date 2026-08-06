@@ -36,6 +36,13 @@
       "when": 1785871575797,
       "tag": "0004_flimsy_swordsman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1785975642723,
+      "tag": "0005_regular_electro",
+      "breakpoints": true
     }
   ]
 }

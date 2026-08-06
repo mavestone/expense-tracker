@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { and, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, like, lte, or, sql } from "drizzle-orm";
 import { db, schema } from "./db";
 import { applyRate, divRound, isValidRate, normalizeRate } from "./money";
 import { financialYear, isValidIsoDate } from "./fy";
@@ -326,24 +326,85 @@ export async function incomeSummary(fy: string) {
   };
 }
 
-/** Income totals per BAS quarter: G1 (total sales) and 1A (GST on sales). */
-export async function incomeByQuarter(fy: string) {
-  const { fyQuarter } = await import("./fy");
+export type GstBasis = "accruals" | "cash";
+
+/**
+ * Income totals per BAS quarter: G1 (total sales) and 1A (GST on sales).
+ *
+ * Two things here are easy to get wrong and both change the number you lodge:
+ *
+ * **Basis.** On ACCRUALS a sale belongs to the quarter it was invoiced in; on
+ * CASH, to the quarter the money arrived. They differ whenever an invoice
+ * straddles a period end, and the cash view deliberately reaches across
+ * financial years — an invoice raised in June and paid in July is FY-N sales
+ * on accruals and FY-N+1 sales on cash. Report on whichever basis you are
+ * actually registered for, not whichever the ledger happens to store.
+ *
+ * **Interest.** Bank interest is an input-taxed financial supply, not a sale,
+ * so it never belongs at G1. It is excluded here and returned separately so it
+ * is visible rather than silently dropped.
+ */
+export async function incomeByQuarter(fy: string, basis: GstBasis = "accruals") {
+  const { fyQuarter, fyRange } = await import("./fy");
   const dbi = await db();
+  const range = fyRange(fy);
+
   const rows = await dbi
     .select()
     .from(schema.income)
-    .where(and(eq(schema.income.financialYear, fy), eq(schema.income.status, "active")));
+    .where(
+      and(
+        eq(schema.income.status, "active"),
+        basis === "cash"
+          ? and(
+              isNotNull(schema.income.datePaid),
+              gte(schema.income.datePaid, range.start),
+              lte(schema.income.datePaid, range.end)
+            )
+          : eq(schema.income.financialYear, fy)
+      )
+    );
+
   const q: Record<string, { g1Cents: number; oneACents: number }> = {
     Q1: { g1Cents: 0, oneACents: 0 }, Q2: { g1Cents: 0, oneACents: 0 },
     Q3: { g1Cents: 0, oneACents: 0 }, Q4: { g1Cents: 0, oneACents: 0 },
   };
+  let excludedInterestCents = 0;
+  const deferred: { invoiceRef: string | null; client: string; audCents: number; dateEarned: string; datePaid: string | null }[] = [];
+
   for (const r of rows) {
-    const k = fyQuarter(r.dateEarned);
+    if (r.incomeType === "interest") {
+      excludedInterestCents += r.audAmountCents;
+      continue;
+    }
+    const k = fyQuarter(basis === "cash" ? r.datePaid! : r.dateEarned);
     q[k].g1Cents += r.audAmountCents;
     q[k].oneACents += r.gstAmountCents;
   }
-  return q;
+
+  // On cash, name what the basis moved out of this year — an invoice dated in
+  // the FY whose money landed after it. This is the reconciling item between
+  // the two views, and it is the one an accountant always asks about.
+  if (basis === "cash") {
+    const accrued = await dbi
+      .select()
+      .from(schema.income)
+      .where(and(eq(schema.income.status, "active"), eq(schema.income.financialYear, fy)));
+    for (const r of accrued) {
+      if (r.incomeType === "interest") continue;
+      if (!r.datePaid || r.datePaid > range.end) {
+        deferred.push({
+          invoiceRef: r.invoiceRef,
+          client: r.clientName,
+          audCents: r.audAmountCents,
+          dateEarned: r.dateEarned,
+          datePaid: r.datePaid,
+        });
+      }
+    }
+  }
+
+  return { quarters: q, excludedInterestCents, deferred };
 }
 
 /**

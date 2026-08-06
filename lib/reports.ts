@@ -250,3 +250,62 @@ export async function financialYearsInData(): Promise<string[]> {
   const rows = await d.selectDistinct({ fy: schema.expenses.financialYear }).from(schema.expenses);
   return rows.map((r) => r.fy).sort((a, b) => (a < b ? 1 : -1));
 }
+
+/**
+ * Income and deductible spend per month across a financial year, for the
+ * overview chart. Months always run Jul → Jun and every month is present even
+ * when nothing happened in it — a gap in a time series reads as missing data,
+ * and a quiet month is information, not an absence of it.
+ */
+export async function monthlyTrend(fy: string) {
+  const { fyRange } = await import("./fy");
+  const dbi = await db();
+  const range = fyRange(fy);
+
+  const [inc, exp] = await Promise.all([
+    dbi
+      .select()
+      .from(schema.income)
+      .where(and(eq(schema.income.financialYear, fy), eq(schema.income.status, "active"))),
+    dbi
+      .select()
+      .from(schema.expenses)
+      .where(and(eq(schema.expenses.financialYear, fy), eq(schema.expenses.status, "active"))),
+  ]);
+
+  const startYear = parseInt(range.start.slice(0, 4), 10);
+  const months: { key: string; label: string; incomeCents: number; expenseCents: number; netCents: number }[] = [];
+  for (let i = 0; i < 12; i++) {
+    const m = ((6 + i) % 12) + 1; // July = 7
+    const y = startYear + (m >= 7 ? 0 : 1);
+    const key = `${y}-${String(m).padStart(2, "0")}`;
+    months.push({
+      key,
+      label: new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-AU", { month: "short", timeZone: "UTC" }),
+      incomeCents: 0,
+      expenseCents: 0,
+      netCents: 0,
+    });
+  }
+  const byKey = new Map(months.map((m) => [m.key, m]));
+
+  for (const r of inc) {
+    // Interest is income but not client revenue; it still belongs in the
+    // profit picture, so it is counted here (unlike G1 on the BAS).
+    byKey.get(r.dateEarned.slice(0, 7))!.incomeCents += r.audAmountCents;
+  }
+  for (const e of exp) {
+    const m = byKey.get(e.dateIncurred.slice(0, 7));
+    if (m) m.expenseCents += e.deductibleAudCents;
+  }
+  for (const m of months) m.netCents = m.incomeCents - m.expenseCents;
+
+  return {
+    fy,
+    months,
+    totals: {
+      incomeCents: months.reduce((s, m) => s + m.incomeCents, 0),
+      expenseCents: months.reduce((s, m) => s + m.expenseCents, 0),
+    },
+  };
+}

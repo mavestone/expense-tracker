@@ -8,7 +8,29 @@ export type AppSettings = {
   subscription_stale_days: number;
   ocr_enabled: boolean;
   gst_registered: boolean;
+
+  owner_name: string;
+  business_abn: string;
+  business_email: string;
+  business_address: string;
+  business_website: string;
+  invoice_logo: string;
+  invoice_terms_default: string;
+  pay_to_aud: string;
+  pay_to_usd: string;
+  pay_to_gbp: string;
+  invoice_footer: string;
 };
+
+/** The currencies invoices can be issued in. */
+export const INVOICE_CURRENCIES = ["AUD", "USD", "GBP"] as const;
+export type InvoiceCurrency = (typeof INVOICE_CURRENCIES)[number];
+
+/** Payment instructions for the currency an invoice is issued in. */
+export function payToFor(s: AppSettings, currency: string): string {
+  const key = `pay_to_${currency.toLowerCase()}` as keyof AppSettings;
+  return (s[key] as string) || "";
+}
 
 export async function getSettings(): Promise<AppSettings> {
   const d = await db();

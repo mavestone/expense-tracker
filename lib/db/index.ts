@@ -90,6 +90,25 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   // Whether the business is registered for GST. Drives GST on sales (1A) and
   // whether GST credits (1B) can be claimed at all. Confirm with your accountant.
   gst_registered: false,
+
+  // Greeting on the overview page. Empty means greet without a name.
+  owner_name: "",
+
+  // ── Invoice branding ────────────────────────────────────────────────────
+  // Everything that prints on an issued invoice. Held in settings rather than
+  // hardcoded so the document can be corrected without a deploy.
+  business_abn: "",
+  business_email: "",
+  business_address: "",
+  business_website: "",
+  // Uploaded logo: JSON {driver,key,mime} written by the branding route, or "".
+  invoice_logo: "",
+  invoice_terms_default: "Payment within 14 days of the invoice date.",
+  // Payment instructions, one block per currency the business invoices in.
+  pay_to_aud: "",
+  pay_to_usd: "",
+  pay_to_gbp: "",
+  invoice_footer: "",
 };
 
 async function seedIfEmpty(d: Db) {

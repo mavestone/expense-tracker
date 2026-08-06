@@ -37,7 +37,7 @@ export async function apiGet<T>(url: string): Promise<T> {
   return handle<T>(await fetch(url, { cache: "no-store" }));
 }
 
-export async function apiSend<T>(url: string, method: "POST" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
+export async function apiSend<T>(url: string, method: "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
   return handle<T>(
     await fetch(url, {
       method,

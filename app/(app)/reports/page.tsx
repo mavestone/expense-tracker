@@ -52,6 +52,9 @@ type GstReport = {
   }[];
   totals: { g10Cents: number; g11Cents: number; oneBCents: number; excludedGstCents: number; flaggedCount: number; g1Cents: number; oneACents: number; netGstCents: number };
   thresholdCents: number;
+  basis: "accruals" | "cash";
+  excludedInterestCents: number;
+  deferred: { invoiceRef: string | null; client: string; audCents: number; dateEarned: string; datePaid: string | null }[];
 };
 
 type DepreciationReport = {
@@ -89,6 +92,10 @@ function ReportsInner() {
   const [profit, setProfit] = useState<ProfitReport | null>(null);
   const [cat, setCat] = useState<CategoryReport | null>(null);
   const [gst, setGst] = useState<GstReport | null>(null);
+  // Which basis the GST report is read on. Defaults to accruals because that is
+  // how the ledger stores a sale; the toggle is what makes a cash-registered
+  // BAS reconcile without re-deriving the numbers by hand.
+  const [basis, setBasis] = useState<"accruals" | "cash">("accruals");
   const [dep, setDep] = useState<DepreciationReport | null>(null);
   const [missing, setMissing] = useState<MissingReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,13 +113,13 @@ function ReportsInner() {
     setCat(null); setGst(null); setDep(null); setMissing(null); setProfit(null);
     Promise.all([
       apiGet<CategoryReport>(`/api/reports/category?fy=${fy}`),
-      apiGet<GstReport>(`/api/reports/gst?fy=${fy}`),
+      apiGet<GstReport>(`/api/reports/gst?fy=${fy}&basis=${basis}`),
       apiGet<DepreciationReport>(`/api/reports/depreciation?fy=${fy}`),
       apiGet<MissingReport>(`/api/reports/missing-receipts?fy=${fy}`),
       apiGet<ProfitReport>(`/api/reports/income?fy=${fy}`),
     ]).then(([c, g, d, m, p]) => { setCat(c); setGst(g); setDep(d); setMissing(m); setProfit(p); })
       .catch((e) => setError(e.message));
-  }, [fy]);
+  }, [fy, basis]);
 
   if (error) return <div className="alert danger">{error}</div>;
   if (!meta || !fy) return <div className="empty"><span className="spin" /> Loading…</div>;
@@ -285,7 +292,22 @@ function ReportsInner() {
           {!gst ? <div className="card"><div className="empty"><span className="spin" /></div></div> : (
             <>
               <div className="card">
-                <h2>Quarterly GST / BAS summary — FY {fy}</h2>
+                <div className="section-head" style={{ margin: "0 0 12px" }}>
+                  <h2 style={{ margin: 0 }}>Quarterly GST / BAS summary — FY {fy}</h2>
+                  <div className="fyswitch" role="group" aria-label="Accounting basis">
+                    <button type="button" className={basis === "accruals" ? "active" : ""} onClick={() => setBasis("accruals")}>
+                      Accruals
+                    </button>
+                    <button type="button" className={basis === "cash" ? "active" : ""} onClick={() => setBasis("cash")}>
+                      Cash
+                    </button>
+                  </div>
+                </div>
+                <p className="small muted" style={{ marginTop: -4, marginBottom: 12 }}>
+                  {basis === "cash"
+                    ? "Cash basis — a sale counts in the quarter the money arrived. Report on this basis only if that is how you are registered for GST."
+                    : "Accruals basis — a sale counts in the quarter it was invoiced, whether or not it has been paid."}
+                </p>
                 <div className="tablewrap">
                   <table className="data">
                     <thead>
@@ -333,6 +355,26 @@ function ReportsInner() {
                 <p className="small muted" style={{ marginBottom: 4 }}>
                   <b>Net GST</b> = 1A (collected on sales) − 1B (credits on purchases). Positive means payable to the ATO; negative means refundable.
                 </p>
+                {(gst.excludedInterestCents > 0 || gst.deferred.length > 0) && (
+                  <div className="alert info" style={{ marginTop: 10 }}>
+                    <b>Reconciling items.</b>
+                    {gst.excludedInterestCents > 0 && (
+                      <div className="small" style={{ marginTop: 4 }}>
+                        {formatAUD(gst.excludedInterestCents)} of bank interest is excluded from G1 — interest is an
+                        input-taxed financial supply, not a sale.
+                      </div>
+                    )}
+                    {gst.deferred.length > 0 && (
+                      <div className="small" style={{ marginTop: 4 }}>
+                        {gst.deferred.length} invoice{gst.deferred.length === 1 ? "" : "s"} dated in FY {fy} but not paid
+                        by 30 June{" "}
+                        {gst.deferred.map((d) => `${d.invoiceRef ?? d.client} ${formatAUD(d.audCents)}`).join(", ")} —
+                        excluded here on the cash basis and picked up in the following year&apos;s G1. This is the
+                        difference between the two bases.
+                      </div>
+                    )}
+                  </div>
+                )}
                 <p className="small muted">
                   Methodology: amounts are GST-inclusive AUD, business-use portion only. G10 = capital, G11 = non-capital (all GST treatments, per the ATO calculation worksheet — see the breakdown below for your accountant to adjust, e.g. G14 for no-GST purchases). 1B = business-use portion of GST on records marked “GST included”, excluding records over {formatAUD(gst.thresholdCents)} with no tax invoice attached.
                 </p>

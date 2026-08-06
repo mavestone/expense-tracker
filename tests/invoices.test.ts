@@ -1,0 +1,119 @@
+import { describe, it, expect } from "vitest";
+import { invoiceTotals, lineAmountCents, validateInvoiceInput, type InvoiceInput } from "../lib/invoices";
+import { validateClientInput, type ClientInput } from "../lib/clients";
+
+const line = (unit: number, qty?: number) => ({ description: "Edit", unitAmountCents: unit, quantityMilli: qty });
+
+describe("invoice line maths", () => {
+  it("defaults quantity to one", () => {
+    expect(lineAmountCents({ description: "x", unitAmountCents: 150000 })).toBe(150000);
+  });
+
+  it("handles fractional quantities", () => {
+    expect(lineAmountCents(line(20000, 500))).toBe(10000); // half a day at $200
+    expect(lineAmountCents(line(8500, 7500))).toBe(63750); // 7.5 hours at $85
+  });
+
+  it("rounds half-up rather than truncating", () => {
+    // 0.333 × $10.00 = $3.33 exactly at the half-up boundary
+    expect(lineAmountCents(line(1000, 333))).toBe(333);
+    expect(lineAmountCents(line(1, 1500))).toBe(2); // 1.5c rounds to 2c, not 1c
+  });
+});
+
+describe("invoice totals", () => {
+  it("adds 10% GST when the sale is taxable", () => {
+    const t = invoiceTotals([line(100000), line(50000)], "gst");
+    expect(t.subtotalCents).toBe(150000);
+    expect(t.gstCents).toBe(15000);
+    expect(t.totalCents).toBe(165000);
+  });
+
+  it("charges nothing on a GST-free export", () => {
+    const t = invoiceTotals([line(471288)], "gst_free");
+    expect(t.gstCents).toBe(0);
+    expect(t.totalCents).toBe(471288);
+  });
+
+  it("stays consistent with the 1/11 rule the ledger applies to the total", () => {
+    // The income record derives GST as 1/11 of the GST-inclusive amount. Adding
+    // 10% here and taking 1/11 there must agree, or the invoice and the BAS
+    // disagree by a cent on every taxable sale.
+    const t = invoiceTotals([line(282550)], "gst");
+    expect(Math.round(t.totalCents / 11)).toBe(t.gstCents);
+  });
+
+  it("is zero for no lines", () => {
+    expect(invoiceTotals([], "gst")).toEqual({ subtotalCents: 0, gstCents: 0, totalCents: 0 });
+  });
+});
+
+describe("invoice validation", () => {
+  const base: InvoiceInput = {
+    clientId: "c1",
+    issueDate: "2026-06-29",
+    dueDate: "2026-07-13",
+    currency: "USD",
+    gstTreatment: "gst_free",
+    lines: [line(100000)],
+  };
+
+  it("accepts a well-formed invoice", () => {
+    expect(validateInvoiceInput(base)).toEqual([]);
+  });
+
+  it("rejects a currency the business does not invoice in", () => {
+    expect(validateInvoiceInput({ ...base, currency: "IDR" }).join(" ")).toMatch(/AUD, USD, GBP/);
+  });
+
+  it("rejects a due date before the issue date", () => {
+    expect(validateInvoiceInput({ ...base, dueDate: "2026-06-01" }).join(" ")).toMatch(/before the issue date/);
+  });
+
+  it("rejects an invoice with no lines, and a zero total", () => {
+    expect(validateInvoiceInput({ ...base, lines: [] }).join(" ")).toMatch(/at least one line/);
+    expect(validateInvoiceInput({ ...base, lines: [line(0)] }).join(" ")).toMatch(/not zero/);
+  });
+
+  it("names the offending line", () => {
+    const errs = validateInvoiceInput({ ...base, lines: [line(1000), { description: "", unitAmountCents: 500 }] });
+    expect(errs.join(" ")).toMatch(/Line 2/);
+  });
+});
+
+describe("client validation", () => {
+  const base: ClientInput = {
+    name: "Kirin Consulting LLC",
+    invoicePrefix: "KC",
+    defaultCurrency: "USD",
+    defaultGstTreatment: "gst_free",
+    paymentTermsDays: 14,
+  };
+
+  it("accepts a well-formed client", () => {
+    expect(validateClientInput(base).errors).toEqual([]);
+  });
+
+  it("requires a usable invoice prefix", () => {
+    expect(validateClientInput({ ...base, invoicePrefix: "" }).errors.join(" ")).toMatch(/prefix/);
+    expect(validateClientInput({ ...base, invoicePrefix: "1KC" }).errors.join(" ")).toMatch(/prefix/);
+    expect(validateClientInput({ ...base, invoicePrefix: "KIRINCONSULTING" }).errors.join(" ")).toMatch(/prefix/);
+  });
+
+  it("warns rather than blocks when GST is set on a foreign-currency client", () => {
+    // Almost always a mistake — an export of services is GST-free — but it is
+    // the owner's call, so it must not stop the record being saved.
+    const r = validateClientInput({ ...base, defaultGstTreatment: "gst" });
+    expect(r.errors).toEqual([]);
+    expect(r.warnings.join(" ")).toMatch(/GST-free/);
+  });
+
+  it("warns on an ABN that fails the checksum", () => {
+    expect(validateClientInput({ ...base, abn: "97 834 141 405" }).warnings.join(" ")).toMatch(/checksum/);
+  });
+
+  it("rejects nonsense payment terms", () => {
+    expect(validateClientInput({ ...base, paymentTermsDays: -1 }).errors.join(" ")).toMatch(/0 and 180/);
+    expect(validateClientInput({ ...base, paymentTermsDays: 400 }).errors.join(" ")).toMatch(/0 and 180/);
+  });
+});

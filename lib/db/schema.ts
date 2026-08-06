@@ -345,3 +345,100 @@ export type Category = typeof categories.$inferSelect;
 export type StatementAccount = typeof statementAccounts.$inferSelect;
 export type Statement = typeof statements.$inferSelect;
 export type StatementTransaction = typeof statementTransactions.$inferSelect;
+
+/**
+ * Clients the business invoices. Held separately from the `client_name` text on
+ * an income record so that details worth reusing — address, tax id, currency,
+ * payment terms — are entered once and stay consistent across every invoice.
+ */
+export const clients = sqliteTable("clients", {
+  id: text("id").primaryKey(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+
+  name: text("name").notNull(),
+  contactName: text("contact_name"),
+  email: text("email"),
+  addressLines: text("address_lines"), // free text, one line per newline
+  country: text("country"),
+
+  // An Australian client has an ABN; an overseas one usually has some other
+  // registration number whose label differs by country (VAT no., EIN, ...).
+  abn: text("abn"),
+  taxLabel: text("tax_label"),
+  taxId: text("tax_id"),
+
+  // Invoice numbers are <prefix>_<n> — KC_01, LEVEE_02 — matching the refs
+  // already used across the income ledger.
+  invoicePrefix: text("invoice_prefix").notNull(),
+  defaultCurrency: text("default_currency").notNull().default("AUD"),
+  defaultGstTreatment: text("default_gst_treatment").notNull().default("gst_free"),
+  paymentTermsDays: integer("payment_terms_days").notNull().default(14),
+
+  notes: text("notes"),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+}, (t) => [uniqueIndex("uq_clients_prefix").on(t.invoicePrefix)]);
+
+/**
+ * An issued invoice. Amounts are in the invoice's own currency — the AUD figure
+ * is never stored here, because it belongs to the income record and is derived
+ * from the rate published on the tax point. Converting in two places is how the
+ * two disagree.
+ */
+export const invoices = sqliteTable(
+  "invoices",
+  {
+    id: text("id").primaryKey(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+
+    number: text("number").notNull(),
+    clientId: text("client_id").notNull().references(() => clients.id),
+
+    // draft | sent | paid | void
+    status: text("status").notNull().default("draft"),
+    issueDate: text("issue_date").notNull(),
+    dueDate: text("due_date").notNull(),
+
+    currency: text("currency").notNull(),
+    // gst (10% added to the lines) | gst_free (export of services)
+    gstTreatment: text("gst_treatment").notNull().default("gst_free"),
+
+    subtotalCents: integer("subtotal_cents").notNull().default(0),
+    gstCents: integer("gst_cents").notNull().default(0),
+    totalCents: integer("total_cents").notNull().default(0),
+
+    purchaseOrder: text("purchase_order"),
+    terms: text("terms"),
+    notes: text("notes"),
+
+    // The link into the tax ledger. Set when the invoice is posted to income;
+    // null while it is still only a document.
+    incomeId: text("income_id"),
+
+    sentAt: text("sent_at"),
+    paidAt: text("paid_at"),
+    voidReason: text("void_reason"),
+  },
+  (t) => [
+    uniqueIndex("uq_invoices_number").on(t.number),
+    index("idx_invoices_client").on(t.clientId),
+    index("idx_invoices_status").on(t.status),
+    index("idx_invoices_issue").on(t.issueDate),
+  ]
+);
+
+/** Line items. Quantity is in thousandths so half-days and hourly rates work. */
+export const invoiceLines = sqliteTable(
+  "invoice_lines",
+  {
+    id: text("id").primaryKey(),
+    invoiceId: text("invoice_id").notNull().references(() => invoices.id),
+    position: integer("position").notNull(),
+    description: text("description").notNull(),
+    quantityMilli: integer("quantity_milli").notNull().default(1000),
+    unitAmountCents: integer("unit_amount_cents").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+  },
+  (t) => [index("idx_invoice_lines_invoice").on(t.invoiceId)]
+);

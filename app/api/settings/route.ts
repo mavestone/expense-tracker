@@ -23,6 +23,18 @@ const EDITABLE_SETTINGS = new Set([
   "subscription_stale_days",
   "ocr_enabled",
   "gst_registered",
+  // Greeting + invoice branding. Free-text, and only ever rendered as text —
+  // the invoice document escapes them like any other React child.
+  "owner_name",
+  "business_abn",
+  "business_email",
+  "business_address",
+  "business_website",
+  "invoice_terms_default",
+  "pay_to_aud",
+  "pay_to_usd",
+  "pay_to_gbp",
+  "invoice_footer",
 ]);
 
 export const PATCH = api(async (req) => {

@@ -203,11 +203,92 @@ describe("reporting", () => {
   });
 
   it("maps income to BAS quarters (G1 / 1A)", async () => {
-    const q = await T.incomeByQuarter("2025-26");
+    const { quarters: q } = await T.incomeByQuarter("2025-26");
     // Feb 2026 = Q3, Apr–Jun 2026 = Q4
     expect(q.Q3.g1Cents).toBeGreaterThanOrEqual(260150);
     expect(q.Q4.g1Cents).toBeGreaterThanOrEqual(550000);
     expect(q.Q4.oneACents).toBeGreaterThanOrEqual(50000); // GST collected on the $5,500 job
     expect(q.Q1.g1Cents).toBe(0);
+  });
+});
+
+describe("BAS basis — the difference that changes what gets lodged", () => {
+  it("moves a June invoice paid in July out of the year on the cash basis", async () => {
+    // The real case this exists for: KC_290626, invoiced 29 Jun 2026 and paid
+    // 2 Jul 2026. Accruals counts it in FY 2025-26; cash counts it in 2026-27.
+    const beforeAccruals = (await T.incomeByQuarter("2025-26", "accruals")).quarters.Q4.g1Cents;
+    const beforeCash = (await T.incomeByQuarter("2025-26", "cash")).quarters.Q4.g1Cents;
+    const beforeNext = (await T.incomeByQuarter("2026-27", "cash")).quarters.Q1.g1Cents;
+
+    await T.createIncome({
+      dateEarned: "2026-06-29",
+      datePaid: "2026-07-02",
+      clientName: "Straddle Client",
+      invoiceRef: "STRAD_01",
+      description: "June deliverables",
+      incomeType: "client_work",
+      originalAmountCents: 471288,
+      originalCurrency: "AUD",
+      gstTreatment: "gst_free",
+    });
+
+    const accruals = await T.incomeByQuarter("2025-26", "accruals");
+    const cash = await T.incomeByQuarter("2025-26", "cash");
+
+    // Accruals picks it up in FY 2025-26; cash does not move at all.
+    expect(accruals.quarters.Q4.g1Cents - beforeAccruals).toBe(471288);
+    expect(cash.quarters.Q4.g1Cents).toBe(beforeCash);
+    expect(cash.deferred.some((d) => d.invoiceRef === "STRAD_01")).toBe(true);
+
+    // …and it lands in the following year on the cash basis instead.
+    const next = await T.incomeByQuarter("2026-27", "cash");
+    expect(next.quarters.Q1.g1Cents - beforeNext).toBe(471288);
+  });
+
+  it("keeps bank interest out of G1 on both bases", async () => {
+    // Interest is an input-taxed financial supply, not a sale.
+    await T.createIncome({
+      dateEarned: "2026-05-01",
+      datePaid: "2026-05-01",
+      clientName: "Up (Bendigo and Adelaide Bank)",
+      description: "Savings interest",
+      incomeType: "interest",
+      originalAmountCents: 16802,
+      originalCurrency: "AUD",
+      gstTreatment: "no_gst",
+    });
+
+    const accruals = await T.incomeByQuarter("2025-26", "accruals");
+    const cash = await T.incomeByQuarter("2025-26", "cash");
+    expect(accruals.excludedInterestCents).toBeGreaterThanOrEqual(16802);
+    expect(cash.excludedInterestCents).toBeGreaterThanOrEqual(16802);
+
+    const before = accruals.quarters.Q4.g1Cents;
+    await T.createIncome({
+      dateEarned: "2026-05-02",
+      datePaid: "2026-05-02",
+      clientName: "Up (Bendigo and Adelaide Bank)",
+      description: "More interest",
+      incomeType: "interest",
+      originalAmountCents: 5000,
+      originalCurrency: "AUD",
+      gstTreatment: "no_gst",
+    });
+    expect((await T.incomeByQuarter("2025-26", "accruals")).quarters.Q4.g1Cents).toBe(before);
+  });
+
+  it("ignores an unpaid invoice entirely on the cash basis", async () => {
+    await T.createIncome({
+      dateEarned: "2026-06-15",
+      clientName: "Slow Payer",
+      invoiceRef: "SLOW_01",
+      description: "Awaiting payment",
+      incomeType: "client_work",
+      originalAmountCents: 100000,
+      originalCurrency: "AUD",
+      gstTreatment: "gst_free",
+    });
+    const cash = await T.incomeByQuarter("2025-26", "cash");
+    expect(cash.deferred.some((d) => d.invoiceRef === "SLOW_01" && d.datePaid === null)).toBe(true);
   });
 });

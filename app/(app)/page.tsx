@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/client";
 import { formatAUD } from "@/lib/money";
 import { taxPosition, bracketLabel, rateLabel, scaleForFy } from "@/lib/tax";
 import ExpenseList from "@/components/ExpenseList";
+import TrendChart, { type TrendMonth } from "@/components/TrendChart";
 import type { ExpenseDto, MetaDto } from "@/lib/types";
 
 type Dashboard = {
@@ -16,18 +17,47 @@ type Dashboard = {
   recent: ExpenseDto[];
 };
 
+type Trend = { fy: string; months: TrendMonth[]; totals: { incomeCents: number; expenseCents: number } };
+
+/**
+ * Time-of-day greeting, computed in the browser so it reflects where the owner
+ * actually is — this business runs from a different timezone most months, and a
+ * server-rendered "good morning" at 11pm reads as broken.
+ */
+function greeting(h: number): string {
+  if (h < 5) return "Still up";
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function HomePage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [meta, setMeta] = useState<MetaDto | null>(null);
+  const [trend, setTrend] = useState<Trend | null>(null);
+  const [ownerName, setOwnerName] = useState("");
+  const [hello, setHello] = useState<string | null>(null);
   const [fy, setFy] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+
+  // Set after mount: rendering it on the server would hydrate a stale hour.
+  useEffect(() => {
+    setHello(greeting(new Date().getHours()));
+  }, []);
+  useEffect(() => {
+    apiGet<{ settings: { owner_name?: string } }>("/api/settings")
+      .then((s) => setOwnerName(s.settings?.owner_name ?? ""))
+      .catch(() => setOwnerName(""));
+  }, []);
 
   useEffect(() => {
     apiGet<MetaDto>("/api/meta").then(setMeta).catch((e) => setError(e.message));
   }, []);
   useEffect(() => {
     setData(null);
+    setTrend(null);
     apiGet<Dashboard>(`/api/dashboard${fy ? `?fy=${fy}` : ""}`).then(setData).catch((e) => setError(e.message));
+    apiGet<Trend>(`/api/reports/trend${fy ? `?fy=${fy}` : ""}`).then(setTrend).catch(() => setTrend(null));
   }, [fy]);
 
   if (error) return <div className="alert danger">{error}</div>;
@@ -60,7 +90,15 @@ export default function HomePage() {
   return (
     <div>
       <div className="section-head">
-        <h1>Overview</h1>
+        <div>
+          <h1 className="greet">
+            {hello ?? "Overview"}
+            {hello && ownerName ? `, ${ownerName}` : ""}
+          </h1>
+          <p className="greet-sub muted small">
+            Here is where FY {activeFy} stands.
+          </p>
+        </div>
       </div>
 
       <div className="fyswitch" role="group" aria-label="Financial year">
@@ -110,6 +148,18 @@ export default function HomePage() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="card mt2">
+        <div className="section-head" style={{ margin: 0 }}>
+          <h2 style={{ margin: 0 }}>Income vs spend — FY {activeFy}</h2>
+          {trend && (
+            <span className="small muted">
+              {formatAUD(trend.totals.incomeCents)} in · {formatAUD(trend.totals.expenseCents)} out
+            </span>
+          )}
+        </div>
+        {trend ? <TrendChart months={trend.months} /> : <div className="empty"><span className="spin" /> Loading…</div>}
       </div>
 
       <div className="card mt2 taxcard">
