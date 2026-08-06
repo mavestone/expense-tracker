@@ -1,5 +1,5 @@
 import { api, json } from "@/lib/api";
-import { getInvoice, updateInvoice, markInvoiceSent, markInvoicePaid, voidInvoice, type InvoiceInput } from "@/lib/invoices";
+import { getInvoice, updateInvoice, markInvoiceSent, markInvoicePaid, voidInvoice, deleteDraftInvoice, type InvoiceInput } from "@/lib/invoices";
 import { NotFoundError, ValidationError } from "@/lib/expenses";
 
 export const runtime = "nodejs";
@@ -30,4 +30,10 @@ export const POST = api(async (req, ctx) => {
     default:
       throw new ValidationError([`Unknown action '${body.action}'.`]);
   }
+});
+
+/** Drafts only — an issued invoice is voided, never removed. */
+export const DELETE = api(async (_req, ctx) => {
+  const { id } = await ctx.params;
+  return json(await deleteDraftInvoice(id));
 });

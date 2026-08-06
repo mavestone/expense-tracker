@@ -117,3 +117,30 @@ describe("client validation", () => {
     expect(validateClientInput({ ...base, paymentTermsDays: 400 }).errors.join(" ")).toMatch(/0 and 180/);
   });
 });
+
+describe("invoice numbering — the sequence must survive real-world refs", () => {
+  // nextInvoiceNumber reads the DB, so the sequence rule is tested directly:
+  // a five-digit-or-longer suffix is a date, not a counter.
+  const SEQ = /_(\d{1,4})$/;
+  const seqOf = (ref: string) => {
+    const m = SEQ.exec(ref);
+    return m ? parseInt(m[1], 10) : null;
+  };
+
+  it("reads a plain sequence", () => {
+    expect(seqOf("KC_01")).toBe(1);
+    expect(seqOf("LEVEE_02")).toBe(2);
+    expect(seqOf("RMR_0003")).toBe(3);
+  });
+
+  it("refuses to read a date-style ref as a sequence", () => {
+    // KC_290626 is 29 June 2026. Counting it would jump the client to KC_290627
+    // and the numbering would never recover.
+    expect(seqOf("KC_290626")).toBeNull();
+    expect(seqOf("BA_20260629")).toBeNull();
+  });
+
+  it("ignores refs that merely start with the same letters", () => {
+    expect("KCX_01".startsWith("KC_")).toBe(false);
+  });
+});

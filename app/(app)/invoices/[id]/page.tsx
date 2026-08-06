@@ -163,7 +163,20 @@ export default function InvoiceDetailPage() {
             </button>
           </>
         )}
-        {inv.status !== "void" && (
+        {inv.status === "draft" && (
+          <button
+            className="btn danger"
+            disabled={busy}
+            onClick={async () => {
+              if (!confirm("Delete this draft? It was never issued, so nothing is lost from the record.")) return;
+              await apiSend(`/api/invoices/${id}`, "DELETE");
+              window.location.href = "/invoices";
+            }}
+          >
+            Delete draft
+          </button>
+        )}
+        {inv.status !== "void" && inv.status !== "draft" && (
           <button
             className="btn danger"
             disabled={busy}

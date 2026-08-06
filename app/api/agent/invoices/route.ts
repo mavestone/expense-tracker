@@ -1,6 +1,6 @@
 import { api, json } from "@/lib/api";
 import { checkAgentAuth, agentApiEnabled } from "@/lib/agent-auth";
-import { createInvoice, listInvoices, markInvoiceSent, type InvoiceStatus } from "@/lib/invoices";
+import { createInvoice, listInvoices, markInvoiceSent, deleteDraftInvoice, type InvoiceStatus } from "@/lib/invoices";
 import { parseMoneyToCents } from "@/lib/money";
 import { ValidationError } from "@/lib/expenses";
 
@@ -111,6 +111,18 @@ export const POST = api(
       },
       { status: 201 }
     );
+  },
+  { auth: false }
+);
+
+/** Discard a draft that was never issued. */
+export const DELETE = api(
+  async (req) => {
+    const blocked = guard(req);
+    if (blocked) return blocked;
+    const id = new URL(req.url).searchParams.get("id");
+    if (!id) throw new ValidationError(["id is required."]);
+    return json(await deleteDraftInvoice(id));
   },
   { auth: false }
 );

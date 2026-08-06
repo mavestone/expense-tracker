@@ -82,29 +82,60 @@ export function validateInvoiceInput(input: InvoiceInput): string[] {
  * already used. Numbers are never reused, including by voided invoices — a gap
  * in a number sequence is a question an auditor asks, and "it was voided" is a
  * better answer than a silently reissued number.
+ *
+ * Two details this has to get right:
+ *
+ *  - Refs raised before this module existed live on income records, so those
+ *    are read too. Ignoring them would restart every client at 01 and collide.
+ *  - A suffix of five digits or more is a DATE, not a sequence. KC_290626 is
+ *    29 June 2026; treating it as sequence 290,626 would jump the whole client
+ *    to KC_290627 and never recover.
  */
+const SEQUENCE_SUFFIX = /_(\d{1,4})$/;
+
 export async function nextInvoiceNumber(clientId: string): Promise<string> {
   const dbi = await db();
   const [client] = await dbi.select().from(schema.clients).where(eq(schema.clients.id, clientId));
   if (!client) throw new NotFoundError("Client not found");
   const prefix = client.invoicePrefix;
 
-  const rows = await dbi
-    .select({ number: schema.invoices.number })
-    .from(schema.invoices)
-    .where(like(schema.invoices.number, `${prefix}\\_%`));
-  // Existing refs also live on income records created before invoicing existed.
-  const legacy = await dbi
-    .select({ number: schema.income.invoiceRef })
-    .from(schema.income)
-    .where(like(schema.income.invoiceRef, `${prefix}\\_%`));
+  // Prefix match only, then filter exactly in JS — SQLite LIKE treats "_" as a
+  // single-character wildcard and drizzle emits no ESCAPE clause, so trying to
+  // escape it here silently matches nothing.
+  const [rows, legacy] = await Promise.all([
+    dbi.select({ number: schema.invoices.number }).from(schema.invoices).where(like(schema.invoices.number, `${prefix}%`)),
+    dbi.select({ number: schema.income.invoiceRef }).from(schema.income).where(like(schema.income.invoiceRef, `${prefix}%`)),
+  ]);
 
   let max = 0;
   for (const r of [...rows, ...legacy]) {
-    const m = /_(\d+)$/.exec(r.number ?? "");
+    const ref = r.number ?? "";
+    if (!ref.startsWith(`${prefix}_`)) continue;
+    const m = SEQUENCE_SUFFIX.exec(ref);
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
   return `${prefix}_${String(max + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Delete a draft outright. Only a draft — it was never issued, so it is not a
+ * business record and leaving it behind just clutters the numbering. Anything
+ * that has been sent is voided instead, and kept.
+ */
+export async function deleteDraftInvoice(id: string) {
+  const inv = await getInvoice(id);
+  if (!inv) throw new NotFoundError("Invoice not found");
+  if (inv.status !== "draft")
+    throw new ValidationError([`Invoice ${inv.number} has been issued — void it instead of deleting it.`]);
+  const dbi = await db();
+  await dbi.transaction(async (tx) => {
+    await tx.delete(schema.invoiceLines).where(eq(schema.invoiceLines.invoiceId, id));
+    await tx.delete(schema.invoices).where(eq(schema.invoices.id, id));
+    await writeAudit(tx, [
+      { entityType: "invoice", entityId: id, action: "void", oldValue: inv.number, note: "Draft deleted before issue" },
+    ]);
+  });
+  return { deleted: true, number: inv.number };
 }
 
 export async function createInvoice(input: InvoiceInput) {
