@@ -213,6 +213,90 @@ const TOOLS = [
     description: "Read app settings, including whether the business is registered for GST.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
+  {
+    name: "find_clients",
+    description:
+      "List invoicing clients with their invoice prefix, default currency, GST treatment and payment terms. Call this before raise_invoice to get the clientId and to know what the client's defaults are.",
+    inputSchema: {
+      type: "object",
+      properties: { includeArchived: { type: "boolean" } },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "add_client",
+    description:
+      "Add an invoicing client. The invoicePrefix drives invoice numbering (KC -> KC_01, KC_02 ...) and must be unique. An overseas client is normally gst_free — an export of services carries no GST.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        invoicePrefix: { type: "string", description: "1-12 letters/digits starting with a letter, e.g. KC" },
+        defaultCurrency: { type: "string", description: "AUD, USD or GBP" },
+        defaultGstTreatment: { type: "string", description: "gst | gst_free" },
+        paymentTermsDays: { type: "number", description: "Days from issue to due date (default 14)" },
+        contactName: { type: "string" },
+        email: { type: "string" },
+        addressLines: { type: "string", description: "Newline-separated address as it should print" },
+        country: { type: "string" },
+        abn: { type: "string", description: "Australian clients only" },
+        taxLabel: { type: "string", description: "Label for a foreign tax number, e.g. \"VAT no.\"" },
+        taxId: { type: "string" },
+        notes: { type: "string" },
+      },
+      required: ["name", "invoicePrefix"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "find_invoices",
+    description:
+      "List invoices with status, amounts in their own currency, and whether each has been posted to the income ledger. Use status:'sent' to find what is awaiting payment.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", description: "Comma list: draft,sent,paid,void" },
+        clientId: { type: "string" },
+        fy: { type: "string", description: "Financial year label, e.g. \"2025-26\"" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "raise_invoice",
+    description:
+      "Create an invoice for a client. Amounts are per line and EXCLUDE GST — GST is added when the client is on the 'gst' treatment. Creates a draft by default; pass send:true to also post it to the income ledger, which freezes the FX rate published for the issue date. An issued invoice cannot be edited afterwards, so confirm the details before sending.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string", description: "From find_clients" },
+        issueDate: { type: "string", description: "YYYY-MM-DD — the tax point, and the FX rate date" },
+        dueDate: { type: "string", description: "YYYY-MM-DD (default: issue date + the client's terms)" },
+        currency: { type: "string", description: "AUD, USD or GBP (default: the client's default)" },
+        gstTreatment: { type: "string", description: "gst | gst_free (default: the client's default)" },
+        purchaseOrder: { type: "string" },
+        terms: { type: "string" },
+        notes: { type: "string" },
+        send: { type: "boolean", description: "Also mark sent and post to the income ledger" },
+        lines: {
+          type: "array",
+          description: "Line items, ex-GST",
+          items: {
+            type: "object",
+            properties: {
+              description: { type: "string" },
+              quantity: { type: "number", description: "Default 1; fractions allowed (0.5, 7.5)" },
+              amount: { type: "string", description: "Unit price as a decimal string, e.g. \"1250.00\"" },
+            },
+            required: ["description", "amount"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["clientId", "issueDate", "lines"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 async function runTool(name, args = {}) {
@@ -247,6 +331,26 @@ async function runTool(name, args = {}) {
       if (receiptPath) body.receipt = readAttachment(receiptPath);
       return callApi("/api/agent/expense", { method: "POST", body });
     }
+
+    case "find_clients": {
+      const p = new URLSearchParams();
+      if (args.includeArchived) p.set("archived", "1");
+      return callApi(`/api/agent/clients?${p}`);
+    }
+
+    case "add_client":
+      return callApi("/api/agent/clients", { method: "POST", body: args });
+
+    case "find_invoices": {
+      const p = new URLSearchParams();
+      if (args.status) p.set("status", args.status);
+      if (args.clientId) p.set("clientId", args.clientId);
+      if (args.fy) p.set("fy", args.fy);
+      return callApi(`/api/agent/invoices?${p}`);
+    }
+
+    case "raise_invoice":
+      return callApi("/api/agent/invoices", { method: "POST", body: args });
 
     case "add_income": {
       const { invoicePath, ...rest } = args;
