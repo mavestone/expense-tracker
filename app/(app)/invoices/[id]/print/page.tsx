@@ -138,15 +138,9 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             </section>
           )}
 
-          {(inv.notes || inv.gstTreatment === "gst_free" || s.invoice_footer) && (
+          {(inv.notes || s.invoice_footer) && (
             <section className="docnotes">
               {inv.notes && <p style={{ whiteSpace: "pre-wrap" }}>{linkify(inv.notes)}</p>}
-              {inv.gstTreatment === "gst_free" && (
-                <p>
-                  This supply is GST-free: an export of services under the A New Tax System (Goods and Services Tax)
-                  Act 1999.
-                </p>
-              )}
               {s.invoice_footer && <p style={{ whiteSpace: "pre-wrap" }}>{linkify(s.invoice_footer)}</p>}
             </section>
           )}
