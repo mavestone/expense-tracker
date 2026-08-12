@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiGet, apiSend, ApiError } from "@/lib/client";
 import { formatCurrency, parseMoneyToCents, centsToDecimalString } from "@/lib/money";
+import ClientQuickAdd, { type NewClient } from "@/components/ClientQuickAdd";
 
 type Client = {
   id: string;
@@ -63,6 +64,7 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
     }
   );
   const [nextNumber, setNextNumber] = useState<string>("");
+  const [addingClient, setAddingClient] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -77,6 +79,20 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
       .catch((e) => setErrors([e.message]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** A client added mid-invoice is selected immediately, defaults and all. */
+  function addClient(c: NewClient) {
+    const next = [...(clients ?? []), c as Client].sort((a, b) => a.name.localeCompare(b.name));
+    setClients(next);
+    setAddingClient(false);
+    setV((prev) => ({
+      ...prev,
+      clientId: c.id,
+      currency: c.defaultCurrency,
+      gstTreatment: c.defaultGstTreatment,
+      dueDate: addDays(prev.issueDate, c.paymentTermsDays),
+    }));
+  }
 
   function applyClient(id: string, list?: Client[]) {
     const c = (list ?? clients ?? []).find((x) => x.id === id);
@@ -150,11 +166,18 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
   }
 
   if (!clients) return <div className="empty"><span className="spin" /> Loading…</div>;
-  if (clients.length === 0)
+  if (clients.length === 0 || addingClient)
     return (
-      <div className="empty">
-        No clients yet — <Link href="/clients">add one first</Link>. Its currency, terms and GST treatment become the
-        defaults for every invoice you raise.
+      <div>
+        {clients.length === 0 && !addingClient && (
+          <p className="muted small mb2">
+            No clients yet. Add one — its currency, terms and GST treatment become the defaults for every invoice you
+            raise for them.
+          </p>
+        )}
+        <div className="card">
+          <ClientQuickAdd onCreated={addClient} onCancel={() => setAddingClient(false)} />
+        </div>
       </div>
     );
 
@@ -166,12 +189,17 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
         <div className="grid2">
           <label>
             Client
-            <select value={v.clientId} onChange={(e) => applyClient(e.target.value)}>
-              <option value="">Choose a client…</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <span className="withbtn">
+              <select value={v.clientId} onChange={(e) => applyClient(e.target.value)}>
+                <option value="">Choose a client…</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button type="button" className="btn ghost small" onClick={() => setAddingClient(true)}>
+                + New
+              </button>
+            </span>
             {nextNumber && <span className="hint">Next number: <b>{nextNumber}</b></span>}
           </label>
           <label>

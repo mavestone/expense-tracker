@@ -42,7 +42,9 @@ export default function InvoiceDetailPage() {
   function load() {
     apiGet<{ invoice: Invoice }>(`/api/invoices/${id}`).then((r) => setInv(r.invoice)).catch((e) => setErrors([e.message]));
   }
-  useEffect(load, [id]);
+  useEffect(() => {
+    load();
+  }, [id]);
 
   async function act(body: Record<string, unknown>) {
     setBusy(true);

@@ -790,3 +790,12 @@ input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) { 
 
 /* The chart's own headline needs air under a card title. */
 .card > .section-head + .trend .trend-head { margin-top: 16px; }
+
+/* A control with a button sitting beside it (client select + "New"). */
+.withbtn { display: flex; gap: 8px; align-items: stretch; }
+.withbtn > select, .withbtn > input { flex: 1; min-width: 0; }
+.withbtn > .btn { flex: none; min-height: 41px; white-space: nowrap; }
+
+/* Inline client creator inside the invoice form. */
+.quickadd { border-left: 3px solid var(--accent); padding-left: 14px; }
+@media (max-width: 560px) { .quickadd { border-left: 0; padding-left: 0; } }

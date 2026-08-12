@@ -54,7 +54,11 @@ export default function ClientsPage() {
       .then((r) => setClients(r.clients))
       .catch((e) => setErrors([e.message]));
   }
-  useEffect(load, [showArchived]);
+  // Wrapped: load() returns a promise, and React treats an effect's return
+  // value as a cleanup function.
+  useEffect(() => {
+    load();
+  }, [showArchived]);
 
   function openNew() {
     setForm({ ...EMPTY });
