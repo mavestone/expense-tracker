@@ -677,9 +677,34 @@ table.csv tbody tr.sel td { background: var(--accent-soft) !important; }
 .doc .totals { margin-top: 18px; margin-left: auto; width: 268px; font-variant-numeric: tabular-nums; }
 .doc .totals .row { display: flex; justify-content: space-between; padding: 5px 0; }
 .doc .totals .row.grand { border-top: 1.5px solid #111; margin-top: 6px; padding-top: 11px; font-size: 17px; font-weight: 700; }
-.doc .doc-foot { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #4b5563; font-size: 12px; }
+.doc .doc-foot { margin-top: 40px; padding-top: 22px; border-top: 1px solid #e5e7eb; color: #4b5563; font-size: 12px; }
 .doc .doc-foot .lbl { color: #6b7280; }
-.doc .pay-block { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+.doc .doc-foot a { color: #111; text-decoration: underline; text-underline-offset: 2px; }
+
+/* Each block in the footer is its own labelled section, so payment details,
+   terms and notes are never read as one run-on paragraph. */
+.doc .paysec + .paysec, .doc .paysec + .docnotes { margin-top: 20px; padding-top: 18px; border-top: 1px solid #eef0f2; }
+
+.doc .paygrid { margin: 0; display: grid; grid-template-columns: max-content 1fr; column-gap: 22px; row-gap: 5px; }
+.doc .payrow { display: contents; }
+.doc .payrow dt { color: #6b7280; white-space: nowrap; }
+.doc .payrow dd {
+  margin: 0; color: #111;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px; word-break: break-word;
+}
+/* A line with no "Label:" spans both columns rather than leaving a hole. */
+.doc .payrow.full dd { grid-column: 1 / -1; font-family: inherit; font-size: 12px; }
+
+.doc .terms { margin: 0; color: #111; }
+.doc .docnotes p { margin: 0 0 7px; }
+.doc .docnotes p:last-child { margin-bottom: 0; }
+
+@media (max-width: 560px) {
+  .doc .paygrid { grid-template-columns: 1fr; row-gap: 2px; }
+  .doc .payrow { display: block; margin-bottom: 8px; }
+  .doc .payrow dt { font-size: 11px; }
+}
 
 @media print {
   .noprint, .topbar, .subnav, .bottomnav { display: none !important; }
@@ -799,3 +824,18 @@ input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) { 
 /* Inline client creator inside the invoice form. */
 .quickadd { border-left: 3px solid var(--accent); padding-left: 14px; }
 @media (max-width: 560px) { .quickadd { border-left: 0; padding-left: 0; } }
+
+/* The invoice is laid out for A4. On a phone it is being previewed rather than
+   printed, so let it breathe and let the line table scroll instead of
+   squashing four columns into 375px. */
+.doc .itemswrap { overflow-x: auto; }
+@media (max-width: 620px) {
+  .doc { padding: 26px 20px; font-size: 12.5px; }
+  .doc h1 { font-size: 21px; }
+  .doc .doc-head { flex-direction: column; gap: 16px; }
+  .doc .doc-meta { text-align: left; }
+  .doc .doc-parties { gap: 20px; margin-top: 24px; }
+  .doc .itemswrap { margin: 0 -20px; padding: 0 20px; }
+  .doc table.items { min-width: 440px; }
+  .doc .totals { width: 100%; }
+}

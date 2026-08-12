@@ -4,6 +4,7 @@ import { getInvoice } from "@/lib/invoices";
 import { getSettings, payToFor } from "@/lib/settings";
 import { formatCurrency } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
+import PaymentBlock, { linkify } from "@/components/PaymentBlock";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -47,7 +48,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           <div className="doc-meta">
             <h1>{inv.gstTreatment === "gst" ? "Tax Invoice" : "Invoice"}</h1>
             <div style={{ marginTop: 10 }}>
-              <div className="lbl">Invoice number</div>
+              <div className="lbl">Invoice reference</div>
               <div style={{ fontWeight: 700 }}>{inv.number}</div>
             </div>
             <div style={{ marginTop: 10 }}>
@@ -87,6 +88,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           </div>
         </div>
 
+        <div className="itemswrap">
         <table className="items">
           <thead>
             <tr>
@@ -107,6 +109,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             ))}
           </tbody>
         </table>
+        </div>
 
         <div className="totals">
           <div className="row">
@@ -126,20 +129,27 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
         </div>
 
         <div className="doc-foot">
-          {payTo && (
-            <div style={{ marginBottom: 16 }}>
-              <div className="lbl">Payment details — {inv.currency}</div>
-              <div className="pay-block">{payTo}</div>
-            </div>
+          {payTo && <PaymentBlock block={payTo} currency={inv.currency} />}
+
+          {terms && (
+            <section className="paysec">
+              <div className="lbl">Payment terms</div>
+              <p className="terms">{linkify(terms)}</p>
+            </section>
           )}
-          {terms && <div style={{ marginBottom: 10 }}>{terms}</div>}
-          {inv.notes && <div style={{ whiteSpace: "pre-wrap", marginBottom: 10 }}>{inv.notes}</div>}
-          {inv.gstTreatment === "gst_free" && (
-            <div style={{ marginBottom: 10 }}>
-              This supply is GST-free: an export of services under the A New Tax System (Goods and Services Tax) Act 1999.
-            </div>
+
+          {(inv.notes || inv.gstTreatment === "gst_free" || s.invoice_footer) && (
+            <section className="docnotes">
+              {inv.notes && <p style={{ whiteSpace: "pre-wrap" }}>{linkify(inv.notes)}</p>}
+              {inv.gstTreatment === "gst_free" && (
+                <p>
+                  This supply is GST-free: an export of services under the A New Tax System (Goods and Services Tax)
+                  Act 1999.
+                </p>
+              )}
+              {s.invoice_footer && <p style={{ whiteSpace: "pre-wrap" }}>{linkify(s.invoice_footer)}</p>}
+            </section>
           )}
-          {s.invoice_footer && <div style={{ whiteSpace: "pre-wrap" }}>{s.invoice_footer}</div>}
         </div>
       </article>
     </>
