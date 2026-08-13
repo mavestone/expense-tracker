@@ -1,17 +1,20 @@
 /* ── Design system v2: refined utilitarian financial tool, light + dark ── */
 :root {
-  --bg: #f6f7f8;
+  --bg: #f4f6f7;
   --surface: #ffffff;
-  --hover: #f4f7f6;
+  --surface-2: #fafbfb;
+  --hover: #f1f6f4;
   --ink: #14181b;
   --ink-2: #49525a;
   --ink-3: #78828b;
   --line: #e7eaec;
   --line-2: #ccd3d7;
-  --accent: #0b6353;
-  --accent-strong: #084c40;
-  --accent-soft: #e1f0ec;
-  --accent-ring: rgba(11, 99, 83, 0.22);
+  --accent: #0d7a65;
+  --accent-strong: #095c4c;
+  --accent-soft: #e2f2ee;
+  --accent-line: #b9ded4;
+  --accent-ring: rgba(13, 122, 101, 0.26);
+  --accent-grad: linear-gradient(155deg, #129076, #0a6152);
   --danger: #b3261e;
   --danger-soft: #fbe9e7;
   --warn: #935409;
@@ -35,18 +38,21 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1114;
-    --surface: #151a1d;
-    --hover: #1a2124;
+    --bg: #0c1013;
+    --surface: #161c20;
+    --surface-2: #1b2226;
+    --hover: #1e262a;
     --ink: #e6e9ea;
     --ink-2: #a7b0b6;
     --ink-3: #707b83;
     --line: #232b2f;
     --line-2: #3a4449;
-    --accent: #3aa48e;
-    --accent-strong: #5cc2ab;
-    --accent-soft: rgba(58, 164, 142, 0.16);
-    --accent-ring: rgba(58, 164, 142, 0.32);
+    --accent: #45b79e;
+    --accent-strong: #6ed3ba;
+    --accent-soft: rgba(69, 183, 158, 0.15);
+    --accent-line: rgba(69, 183, 158, 0.34);
+    --accent-ring: rgba(69, 183, 158, 0.34);
+    --accent-grad: linear-gradient(155deg, #3aa88f, #1d6d5c);
     --danger: #e5786f;
     --danger-soft: rgba(229, 120, 111, 0.14);
     --warn: #d99a4e;
@@ -883,3 +889,105 @@ input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) { 
 .toast.error .toast-dot { background: var(--danger); }
 @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes toastOut { to { opacity: 0; transform: translateY(6px); } }
+
+/* ── Skeletons ───────────────────────────────────────────────────────────── */
+.sk {
+  display: block; border-radius: 6px;
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 7%, transparent), transparent)
+    0 0 / 220px 100% no-repeat,
+    color-mix(in srgb, var(--ink) 8%, transparent);
+  animation: skShimmer 1.25s ease-in-out infinite;
+}
+.sk + .sk { margin-top: 8px; }
+.sk-block { border-radius: var(--radius); }
+.sk-card { display: flex; flex-direction: column; gap: 0; }
+.sk-rows { display: flex; flex-direction: column; }
+.sk-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
+  padding: 15px 2px; border-bottom: 1px solid var(--line);
+}
+.sk-row:last-child { border-bottom: 0; }
+.sk-row-main { flex: 1; min-width: 0; }
+.sk-row-amt { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+@keyframes skShimmer { to { background-position: 320px 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ═══ Finish ══════════════════════════════════════════════════════════════
+   The small things: consistent focus, rows that look clickable, empty states
+   that say what to do next, and a primary button with some depth to it. */
+
+/* One focus treatment everywhere, keyboard-only. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* The primary action carries the brand gradient; ghosts stay quiet. */
+.btn:not(.ghost):not(.danger) {
+  background: var(--accent-grad);
+  border-color: color-mix(in srgb, var(--accent-strong) 55%, transparent);
+}
+.btn:not(.ghost):not(.danger):hover { filter: brightness(1.08); background: var(--accent-grad); }
+.btn.ghost { background: var(--surface); }
+.btn.ghost:hover { border-color: var(--line-2); }
+
+/* Rows that go somewhere should look like it. */
+.exprow, .lines-table tbody tr:has(a[href]) { position: relative; }
+.exprow { transition: background 0.13s ease, padding-left 0.13s ease; }
+.exprow:hover { background: var(--hover); }
+.exprow:hover::after {
+  content: "›"; position: absolute; right: 12px; top: 50%; transform: translateY(-52%);
+  color: var(--ink-3); font-size: 19px; line-height: 1; pointer-events: none;
+}
+
+/* Empty states get room and a hierarchy. */
+.empty { padding: 54px 18px; line-height: 1.6; }
+.empty b, .empty strong { display: block; color: var(--ink); font-size: 15px; margin-bottom: 4px; }
+
+/* Cards lift very slightly under the pointer when they are links. */
+a > .card, a > .stat { transition: transform 0.14s ease, box-shadow 0.14s ease; }
+a:hover > .card, a:hover > .stat { transform: translateY(-1px); box-shadow: var(--shadow-raised); }
+
+/* Filter/toolbar controls read as one group rather than five loose selects. */
+.filters {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding: 10px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.filters select, .filters input { min-height: 36px; padding: 6px 10px; font-size: 13px; }
+.filters .grow { flex: 1; min-width: 160px; }
+
+/* Selection and scrollbars, so the app feels finished at the edges. */
+::selection { background: var(--accent-soft); color: var(--accent-strong); }
+* { scrollbar-color: var(--line-2) transparent; scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* The active sub-nav underline slides rather than jumping. */
+.subnav a { transition: color 0.14s ease, border-color 0.18s ease; }
+
+/* Pills carry a dot so status reads without relying on colour alone. */
+.pill::before {
+  content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 999px;
+  background: currentColor; margin-right: 6px; vertical-align: 1.5px; opacity: 0.85;
+}
+.pill.void::before { display: none; }
+
+/* The totals for whatever the filters currently select — the number you came
+   for, so it sits above the list rather than inside it as fine print. */
+.listsum {
+  display: flex; gap: 20px; flex-wrap: wrap; align-items: baseline;
+  margin: 14px 2px 10px; font-size: 13px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.listsum b { color: var(--ink); font-weight: 680; font-size: 14.5px; }
+.listsum b.accent { color: var(--accent-strong); }

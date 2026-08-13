@@ -8,6 +8,7 @@ import { formatAUD, bpToPercentString } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 import type { MetaDto } from "@/lib/types";
 import FyClosePanel from "@/components/FyClosePanel";
+import { SkeletonStats, SkeletonBlock, Loading } from "@/components/Skeleton";
 
 type Tab = "profit" | "category" | "gst" | "depreciation" | "missing";
 
@@ -123,7 +124,15 @@ function ReportsInner() {
   }, [fy, basis]);
 
   if (error) return <div className="alert danger">{error}</div>;
-  if (!meta || !fy) return <div className="empty"><span className="spin" /> Loading…</div>;
+  if (!meta || !fy)
+    return (
+      <Loading label="Loading reports">
+        <div className="section-head"><h1>Reports</h1></div>
+        <div className="card mb2"><SkeletonBlock height={90} /></div>
+        <SkeletonStats />
+        <div className="card mt2"><SkeletonBlock height={220} /></div>
+      </Loading>
+    );
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "profit", label: "Income & profit" },
@@ -167,7 +176,7 @@ function ReportsInner() {
 
       {tab === "profit" && (
         <div>
-          {!profit ? <div className="card"><div className="empty"><span className="spin" /></div></div> : (
+          {!profit ? <div className="card"><SkeletonBlock height={220} /></div> : (
             <>
               <div className="stats mb2">
                 <div className="stat">
@@ -290,7 +299,7 @@ function ReportsInner() {
 
       {tab === "gst" && (
         <div>
-          {!gst ? <div className="card"><div className="empty"><span className="spin" /></div></div> : (
+          {!gst ? <div className="card"><SkeletonBlock height={220} /></div> : (
             <>
               <div className="card">
                 <div className="section-head" style={{ margin: "0 0 12px" }}>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiGet, apiSend, ApiError } from "@/lib/client";
 import { formatCurrency } from "@/lib/money";
+import { SkeletonRows, Loading } from "@/components/Skeleton";
 
 type Client = {
   id: string;
@@ -218,7 +219,7 @@ export default function ClientsPage() {
       )}
 
       {!clients ? (
-        <div className="empty"><span className="spin" /> Loading…</div>
+        <div className="card"><Loading label="Loading clients"><SkeletonRows rows={3} /></Loading></div>
       ) : clients.length === 0 ? (
         <div className="empty">
           No clients yet. Add one and its details carry onto every invoice you raise for it.

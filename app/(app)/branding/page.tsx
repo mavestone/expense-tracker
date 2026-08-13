@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiGet, apiSend, apiUpload, ApiError } from "@/lib/client";
+import { SkeletonBlock, Loading } from "@/components/Skeleton";
 
 type Settings = Record<string, string | number | boolean>;
 
@@ -90,7 +91,14 @@ export default function BrandingPage() {
     setLogoVersion((v) => v + 1);
   }
 
-  if (!s) return <div className="empty"><span className="spin" /> Loading…</div>;
+  if (!s)
+    return (
+      <Loading label="Loading branding">
+        <div className="section-head"><h1>Branding</h1></div>
+        <div className="card"><SkeletonBlock height={150} /></div>
+        <div className="card mt2"><SkeletonBlock height={190} /></div>
+      </Loading>
+    );
 
   return (
     <div>

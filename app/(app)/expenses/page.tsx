@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, Suspense } from "react";
 import Link from "next/link";
+import { SkeletonRows, Loading } from "@/components/Skeleton";
 import { useSearchParams } from "next/navigation";
 import { apiGet } from "@/lib/client";
 import { formatAUD } from "@/lib/money";
@@ -68,6 +69,8 @@ function ExpensesInner() {
     return () => clearTimeout(t);
   }, [load, q]);
 
+  const activeFilters = [fy, quarter, categoryId, status, flags, q].filter(Boolean).length;
+
   return (
     <div>
       <div className="section-head">
@@ -75,7 +78,7 @@ function ExpensesInner() {
         <Link href="/expenses/new" className="btn small">+ Add expense</Link>
       </div>
 
-      <div className="filterbar">
+      <div className="filters">
         <select value={fy} onChange={(e) => { setFy(e.target.value); if (!e.target.value) setQuarter(""); }}>
           <option value="">All FYs</option>
           {(meta?.financialYears ?? []).map((f) => (
@@ -107,18 +110,35 @@ function ExpensesInner() {
           <option value="missingReceipt">Missing receipt</option>
           <option value="pendingFx">FX pending</option>
         </select>
-        <input type="search" placeholder="Search supplier, description, notes" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input
+          className="grow"
+          type="search"
+          placeholder="Search supplier, description, notes"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        {activeFilters > 0 && (
+          <button
+            className="btn ghost small"
+            onClick={() => { setFy(""); setQuarter(""); setCategoryId(""); setStatus(""); setFlags(""); setQ(""); }}
+          >
+            Clear {activeFilters}
+          </button>
+        )}
       </div>
 
       {error && <div className="alert danger">{error}</div>}
 
+      {data && (
+        <div className="listsum">
+          <span><b>{data.totals.count}</b> record{data.totals.count === 1 ? "" : "s"}</span>
+          <span>total <b>{formatAUD(data.totals.audTotal)}</b></span>
+          <span>deductible <b className="accent">{formatAUD(data.totals.deductibleTotal)}</b></span>
+        </div>
+      )}
+
       <div className="card">
-        {data && (
-          <div className="small muted mb1">
-            {data.totals.count} record{data.totals.count === 1 ? "" : "s"} · total {formatAUD(data.totals.audTotal)} · deductible {formatAUD(data.totals.deductibleTotal)}
-          </div>
-        )}
-        {!data && <div className="empty"><span className="spin" /> Loading…</div>}
+        {!data && <Loading label="Loading expenses"><SkeletonRows rows={6} /></Loading>}
         {data && <ExpenseList expenses={rows} categories={meta?.categories} />}
         {data?.hasMore && (
           <div className="btnrow mt2" style={{ justifyContent: "center" }}>

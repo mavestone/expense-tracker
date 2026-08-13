@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/client";
 import { formatCurrency } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 import type { MetaDto } from "@/lib/types";
+import { SkeletonRows, Loading } from "@/components/Skeleton";
 
 type Invoice = {
   id: string;
@@ -100,7 +101,7 @@ export default function InvoicesPage() {
 
       <div className="card mt2">
         {!data ? (
-          <div className="empty"><span className="spin" /> Loading…</div>
+          <Loading label="Loading invoices"><SkeletonRows rows={4} /></Loading>
         ) : data.invoices.length === 0 ? (
           <div className="empty">
             Nothing here yet. <Link href="/invoices/new">Raise an invoice</Link> — marking it sent posts it straight

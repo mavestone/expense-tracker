@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/client";
 import { formatAUD } from "@/lib/money";
 import { taxPosition, bracketLabel, rateLabel, scaleForFy } from "@/lib/tax";
 import ExpenseList from "@/components/ExpenseList";
+import { SkeletonStats, SkeletonBlock, SkeletonRows, Loading } from "@/components/Skeleton";
 import TrendChart, { type TrendMonth } from "@/components/TrendChart";
 import type { ExpenseDto, MetaDto } from "@/lib/types";
 
@@ -61,7 +62,15 @@ export default function HomePage() {
   }, [fy]);
 
   if (error) return <div className="alert danger">{error}</div>;
-  if (!data) return <div className="empty"><span className="spin" /> Loading…</div>;
+  if (!data)
+    return (
+      <Loading label="Loading your overview">
+        <div className="section-head"><div><h1 className="greet">{hello ?? "Overview"}</h1></div></div>
+        <SkeletonStats />
+        <div className="card mt2"><SkeletonBlock height={300} /></div>
+        <div className="card mt2"><SkeletonBlock height={180} /></div>
+      </Loading>
+    );
 
   const activeFy = fy || data.fy;
   const years = meta?.financialYears ?? [data.fy];
@@ -160,7 +169,7 @@ export default function HomePage() {
             </span>
           )}
         </div>
-        {trend ? <TrendChart months={trend.months} /> : <div className="empty"><span className="spin" /> Loading…</div>}
+        {trend ? <TrendChart months={trend.months} /> : <SkeletonBlock height={300} />}
       </div>
 
       <div className="card mt2 taxcard">
