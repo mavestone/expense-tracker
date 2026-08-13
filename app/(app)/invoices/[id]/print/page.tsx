@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getInvoice } from "@/lib/invoices";
 import { getSettings, payToFor } from "@/lib/settings";
-import { formatCurrency } from "@/lib/money";
+import { formatWithCode, formatAmount } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 import PaymentBlock, { linkify } from "@/components/PaymentBlock";
 
@@ -89,9 +89,8 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           <div>
             <div className="lbl">Amount due</div>
             <div style={{ fontSize: 25, fontWeight: 750, letterSpacing: "-0.02em" }}>
-              {formatCurrency(inv.totalCents, inv.currency)}
+              {formatWithCode(inv.totalCents, inv.currency)}
             </div>
-            <div style={{ color: "#6b7280", marginTop: 2 }}>{inv.currency}</div>
           </div>
         </div>
 
@@ -110,8 +109,8 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
               <tr key={l.id}>
                 <td>{l.description}</td>
                 <td className="r">{l.quantityMilli / 1000}</td>
-                <td className="r">{formatCurrency(l.unitAmountCents, inv.currency)}</td>
-                <td className="r">{formatCurrency(l.amountCents, inv.currency)}</td>
+                <td className="r">{formatAmount(l.unitAmountCents, inv.currency)}</td>
+                <td className="r">{formatAmount(l.amountCents, inv.currency)}</td>
               </tr>
             ))}
           </tbody>
@@ -121,17 +120,17 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
         <div className="totals">
           <div className="row">
             <span>Subtotal</span>
-            <span>{formatCurrency(inv.subtotalCents, inv.currency)}</span>
+            <span>{formatAmount(inv.subtotalCents, inv.currency)}</span>
           </div>
           <div className="row">
             <span>{inv.gstTreatment === "gst" ? "GST 10%" : "GST"}</span>
             <span>
-              {inv.gstTreatment === "gst" ? formatCurrency(inv.gstCents, inv.currency) : "GST-free"}
+              {inv.gstTreatment === "gst" ? formatAmount(inv.gstCents, inv.currency) : "GST-free"}
             </span>
           </div>
           <div className="row grand">
             <span>Total</span>
-            <span>{formatCurrency(inv.totalCents, inv.currency)}</span>
+            <span>{formatAmount(inv.totalCents, inv.currency)}</span>
           </div>
         </div>
 

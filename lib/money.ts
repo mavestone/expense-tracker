@@ -69,6 +69,47 @@ export function formatCurrency(cents: number, currency: string): string {
   }
 }
 
+/**
+ * Amount prefixed with its ISO code, e.g. "USD 2,000.00".
+ *
+ * For declaring a document's currency ONCE, at the headline figure. After that
+ * the same document should use formatAmount, because repeating the currency on
+ * every line is noise rather than clarity.
+ */
+export function formatWithCode(cents: number, currency: string): string {
+  const code = (currency || "").toUpperCase();
+  try {
+    const n = new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "code",
+    }).format(cents / 100);
+    // Intl already puts the code in; just normalise its non-breaking space.
+    return n.replace(/\u00a0/g, " ");
+  } catch {
+    return `${code} ${centsToDecimalString(cents)}`;
+  }
+}
+
+/**
+ * Amount with the bare symbol and no country prefix, e.g. "$2,000.00".
+ *
+ * Only safe where the currency has already been stated — inside a single
+ * invoice, not in a list that mixes currencies.
+ */
+export function formatAmount(cents: number, currency: string): string {
+  const code = (currency || "").toUpperCase();
+  try {
+    return new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "narrowSymbol",
+    }).format(cents / 100);
+  } catch {
+    return `${code} ${centsToDecimalString(cents)}`;
+  }
+}
+
 /** The symbol alone, for labelling an input rather than an amount. */
 export function currencySymbol(currency: string): string {
   const code = (currency || "").toUpperCase();

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseMoneyToCents, centsToDecimalString, divRound, applyRate, invertRate, applyBp, percentToBp, bpToPercentString, normalizeRate, isValidRate, formatCurrency, currencySymbol } from "../lib/money";
+import { parseMoneyToCents, centsToDecimalString, divRound, applyRate, invertRate, applyBp, percentToBp, bpToPercentString, normalizeRate, isValidRate, formatCurrency, currencySymbol, formatWithCode, formatAmount } from "../lib/money";
 
 describe("parseMoneyToCents", () => {
   it("parses plain and formatted amounts", () => {
@@ -129,6 +129,19 @@ describe("currency display", () => {
     // Intl separates the code from the amount with a non-breaking space, which
     // is what we want in HTML — normalised here so the assertion is readable.
     expect(formatCurrency(1000, "ZZZ").replace(/\u00a0/g, " ")).toBe("ZZZ 10.00");
+  });
+
+  it("states the currency once with its code, for a document headline", () => {
+    expect(formatWithCode(200000, "USD")).toBe("USD 2,000.00");
+    expect(formatWithCode(3312, "GBP")).toBe("GBP 33.12");
+  });
+
+  it("drops the country prefix once the currency has been stated", () => {
+    // Inside one invoice the currency is already declared, so repeating it on
+    // every line is noise. This form is only safe in that context.
+    expect(formatAmount(200000, "USD")).toBe("$2,000.00");
+    expect(formatAmount(3312, "GBP")).toBe("£33.12");
+    expect(formatAmount(150000, "JPY")).toBe("¥1,500");
   });
 
   it("exposes the symbol alone for labelling an input", () => {
