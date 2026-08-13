@@ -5,15 +5,18 @@ import { apiGet, apiSend } from "@/lib/client";
 import { parseMoneyToCents, centsToDecimalString } from "@/lib/money";
 import { currentFy, fyLabel } from "@/lib/fy";
 import type { CategoryDto, PaymentMethodDto, SettingsDto, ThresholdDto } from "@/lib/types";
+import { useToast } from "@/components/Toast";
+import { useDialog } from "@/components/Dialog";
 
 type SettingsResponse = { settings: SettingsDto; thresholds: ThresholdDto[] };
 
 export default function SettingsPage() {
+  const { ask, dialog } = useDialog();
+  const { toast } = useToast();
   const [data, setData] = useState<SettingsResponse | null>(null);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [payments, setPayments] = useState<PaymentMethodDto[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
 
   // local edit state
   const [bizName, setBizName] = useState("");
@@ -58,11 +61,6 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function flash(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2400);
-  }
-
   async function saveGeneral(e: React.FormEvent) {
     e.preventDefault();
     const r = parseMoneyToCents(receiptThresh);
@@ -80,7 +78,7 @@ export default function SettingsPage() {
         gst_registered: gstRegistered,
       },
     });
-    flash("Settings saved");
+    toast("Settings saved");
     await load();
   }
 
@@ -90,7 +88,7 @@ export default function SettingsPage() {
     if (v.trim() !== "" && cents == null) return setError(`Invalid amount for FY ${fyLabelStr}.`);
     setError(null);
     await apiSend("/api/settings", "PATCH", { thresholds: [{ fyLabel: fyLabelStr, instantWriteoffCents: cents }] });
-    flash(`FY ${fyLabelStr} threshold saved`);
+    toast(`FY ${fyLabelStr} threshold saved`);
     await load();
   }
 
@@ -103,7 +101,7 @@ export default function SettingsPage() {
     await apiSend("/api/settings", "PATCH", { thresholds: [{ fyLabel: newFy, instantWriteoffCents: cents }] });
     setNewFy("");
     setNewFyAmount("");
-    flash("FY threshold added");
+    toast("FY threshold added");
     await load();
   }
 
@@ -114,7 +112,7 @@ export default function SettingsPage() {
       await apiSend("/api/categories", "POST", { name: newCat.trim(), isEquipment: newCatEquip });
       setNewCat("");
       setNewCatEquip(false);
-      flash("Category added");
+      toast("Category added");
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -132,7 +130,7 @@ export default function SettingsPage() {
     try {
       await apiSend("/api/payment-methods", "POST", { name: newPay.trim() });
       setNewPay("");
-      flash("Payment method added");
+      toast("Payment method added");
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -254,10 +252,22 @@ export default function SettingsPage() {
                     />
                   </td>
                   <td className="r">
-                    <button className="btn ghost small" onClick={() => {
-                      const name = prompt("Rename category:", c.name);
-                      if (name && name.trim() && name !== c.name) patchCategory(c, { name: name.trim() });
-                    }}>Rename</button>{" "}
+                    <button
+                      className="btn ghost small"
+                      onClick={() =>
+                        ask({
+                          title: "Rename category",
+                          body: <>Records already filed under <b>{c.name}</b> move with it.</>,
+                          prompt: { label: "Name", defaultValue: c.name, required: true },
+                          confirmLabel: "Rename",
+                          onConfirm: (name) => {
+                            if (name.trim() && name.trim() !== c.name) patchCategory(c, { name: name.trim() });
+                          },
+                        })
+                      }
+                    >
+                      Rename
+                    </button>{" "}
                     <button className="btn ghost small" onClick={() => patchCategory(c, { archived: !c.archived })}>
                       {c.archived ? "Restore" : "Archive"}
                     </button>
@@ -331,8 +341,7 @@ export default function SettingsPage() {
           <a className="btn ghost" href={`/api/export/backup?fy=${fyNow}`}>⬇ This FY only</a>
         </div>
       </div>
-
-      {toast && <div className="toast">{toast}</div>}
+      {dialog}
     </div>
   );
 }

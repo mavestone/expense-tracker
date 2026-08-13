@@ -7,6 +7,8 @@ import { formatAUD, formatCurrency, parseMoneyToCents, centsToDecimalString, per
 import { formatDateAU } from "@/lib/fy";
 import { GST_TREATMENTS } from "@/lib/gst";
 import { COMMON_CURRENCIES, type MetaDto, type SubscriptionDto } from "@/lib/types";
+import { useToast } from "@/components/Toast";
+import { useDialog } from "@/components/Dialog";
 
 type Overview = { subscriptions: SubscriptionDto[]; totalAnnualAudCents: number; fxIncomplete: boolean; draftsGenerated: number };
 
@@ -26,6 +28,8 @@ const EMPTY_FORM = {
 };
 
 export default function SubscriptionsPage() {
+  const { ask, dialog } = useDialog();
+  const { toast } = useToast();
   const [data, setData] = useState<Overview | null>(null);
   const [meta, setMeta] = useState<MetaDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,14 +37,13 @@ export default function SubscriptionsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const [m, o] = await Promise.all([apiGet<MetaDto>("/api/meta"), apiGet<Overview>("/api/subscriptions")]);
       setMeta(m);
       setData(o);
-      if (o.draftsGenerated > 0) setToast(`${o.draftsGenerated} renewal draft${o.draftsGenerated > 1 ? "s" : ""} generated — confirm under Expenses`);
+      if (o.draftsGenerated > 0) toast(`${o.draftsGenerated} renewal draft${o.draftsGenerated > 1 ? "s" : ""} generated — confirm under Expenses`);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -101,7 +104,7 @@ export default function SubscriptionsPage() {
       else await apiSend("/api/subscriptions", "POST", { input });
       setFormOpen(false);
       await load();
-      setToast(editingId ? "Subscription updated" : "Subscription added — drafts will appear on each renewal date");
+      toast(editingId ? "Subscription updated" : "Subscription added — drafts will appear on each renewal date");
     } catch (err) {
       setError(err instanceof ApiError ? (err.errors?.join(" ") ?? err.message) : (err as Error).message);
     } finally {
@@ -109,13 +112,20 @@ export default function SubscriptionsPage() {
     }
   }
 
-  async function toggleActive(s: SubscriptionDto) {
-    const msg = s.active
-      ? `Mark "${s.vendor}" as cancelled? No more renewal drafts will be generated. Existing records are kept.`
-      : `Reactivate "${s.vendor}"?`;
-    if (!confirm(msg)) return;
-    await apiSend(`/api/subscriptions/${s.id}`, "PATCH", { active: !s.active });
-    await load();
+  function toggleActive(s: SubscriptionDto) {
+    ask({
+      title: s.active ? `Mark ${s.vendor} as cancelled?` : `Reactivate ${s.vendor}?`,
+      body: s.active
+        ? "No more renewal drafts will be generated. Expenses already recorded are kept."
+        : "Renewal drafts will start being generated again from the next due date.",
+      confirmLabel: s.active ? "Mark cancelled" : "Reactivate",
+      danger: s.active,
+      onConfirm: async () => {
+        await apiSend(`/api/subscriptions/${s.id}`, "PATCH", { active: !s.active });
+        await load();
+        toast(s.active ? `${s.vendor} cancelled` : `${s.vendor} reactivated`);
+      },
+    });
   }
 
   if (error && !data) return <div className="alert danger">{error}</div>;
@@ -282,8 +292,7 @@ export default function SubscriptionsPage() {
           </div>
         </div>
       )}
-
-      {toast && <div className="toast">{toast}</div>}
+      {dialog}
     </div>
   );
 }

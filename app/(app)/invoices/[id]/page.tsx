@@ -7,6 +7,8 @@ import { apiGet, apiSend, ApiError } from "@/lib/client";
 import { formatCurrency } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 import InvoiceForm, { type InvoiceFormValue } from "@/components/InvoiceForm";
+import { useDialog } from "@/components/Dialog";
+import { useToast } from "@/components/Toast";
 
 type Line = { id: string; description: string; quantityMilli: number; unitAmountCents: number; amountCents: number };
 type Invoice = {
@@ -38,6 +40,8 @@ export default function InvoiceDetailPage() {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [paidDate, setPaidDate] = useState(new Date().toISOString().slice(0, 10));
+  const { ask, dialog } = useDialog();
+  const { toast } = useToast();
 
   function load() {
     apiGet<{ invoice: Invoice }>(`/api/invoices/${id}`).then((r) => setInv(r.invoice)).catch((e) => setErrors([e.message]));
@@ -85,6 +89,7 @@ export default function InvoiceDetailPage() {
           <button className="btn ghost small" onClick={() => setEditing(false)}>Back</button>
         </div>
         <InvoiceForm initial={initial} />
+        {dialog}
       </div>
     );
   }
@@ -170,11 +175,18 @@ export default function InvoiceDetailPage() {
           <button
             className="btn danger"
             disabled={busy}
-            onClick={async () => {
-              if (!confirm("Delete this draft? It was never issued, so nothing is lost from the record.")) return;
-              await apiSend(`/api/invoices/${id}`, "DELETE");
-              window.location.href = "/invoices";
-            }}
+            onClick={() =>
+              ask({
+                title: "Delete this draft?",
+                body: "It was never issued, so nothing is lost from the record.",
+                confirmLabel: "Delete draft",
+                danger: true,
+                onConfirm: async () => {
+                  await apiSend(`/api/invoices/${id}`, "DELETE");
+                  window.location.href = "/invoices";
+                },
+              })
+            }
           >
             Delete draft
           </button>
@@ -183,10 +195,19 @@ export default function InvoiceDetailPage() {
           <button
             className="btn danger"
             disabled={busy}
-            onClick={() => {
-              const reason = prompt("Why is this invoice being voided?");
-              if (reason?.trim()) act({ action: "void", reason });
-            }}
+            onClick={() =>
+              ask({
+                title: `Void ${inv.number}?`,
+                body: "The invoice is kept and stays numbered — voiding records that it should not be paid. Raise a replacement rather than editing it.",
+                prompt: { label: "Reason", placeholder: "Superseded by a corrected invoice", required: true },
+                confirmLabel: "Void invoice",
+                danger: true,
+                onConfirm: async (reason) => {
+                  await act({ action: "void", reason });
+                  toast(`${inv.number} voided`);
+                },
+              })
+            }
           >
             Void
           </button>
@@ -199,6 +220,7 @@ export default function InvoiceDetailPage() {
           After that the invoice can no longer be edited — correct an issued invoice by voiding it and raising a new one.
         </p>
       )}
+      {dialog}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { formatAbn } from "@/lib/abn";
 import ExpenseForm from "@/components/ExpenseForm";
 import ReceiptUploader, { type StagedReceipt } from "@/components/ReceiptUploader";
 import type { AuditDto, ExpenseDto, ReceiptDto, CategoryDto, SubscriptionDto } from "@/lib/types";
+import { useToast } from "@/components/Toast";
 
 type Detail = {
   expense: ExpenseDto;
@@ -38,6 +39,7 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 export default function ExpenseDetailPage() {
+  const { toast } = useToast();
   const { id } = useParams<{ id: string }>();
   const search = useSearchParams();
   const router = useRouter();
@@ -48,7 +50,6 @@ export default function ExpenseDetailPage() {
   const [voidReason, setVoidReason] = useState("");
   const [staged, setStaged] = useState<StagedReceipt | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
   const load = useCallback(async () => {
@@ -64,11 +65,10 @@ export default function ExpenseDetailPage() {
   }, [load]);
 
   useEffect(() => {
-    if (search.get("created")) setToast("Expense saved");
-    if (search.get("updated")) setToast("Changes saved");
-    const t = setTimeout(() => setToast(null), 2600);
-    return () => clearTimeout(t);
-  }, [search]);
+    // The provider handles its own dismissal now.
+    if (search.get("created")) toast("Expense saved");
+    if (search.get("updated")) toast("Changes saved");
+  }, [search, toast]);
 
   if (error) return <div className="alert danger">{error}</div>;
   if (!data) return <div className="empty"><span className="spin" /> Loading…</div>;
@@ -91,7 +91,7 @@ export default function ExpenseDetailPage() {
     try {
       await apiUpload(`/api/expenses/${id}/receipts`, staged.file, staged.filename);
       setStaged(null);
-      setToast(current ? "Receipt replaced (old version kept)" : "Receipt attached");
+      toast(current ? "Receipt replaced (old version kept)" : "Receipt attached");
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -107,7 +107,7 @@ export default function ExpenseDetailPage() {
       await apiSend(`/api/expenses/${id}/void`, "POST", { reason: voidReason });
       setVoiding(false);
       await load();
-      setToast("Record voided (kept in the audit view)");
+      toast("Record voided (kept in the audit view)");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -120,7 +120,7 @@ export default function ExpenseDetailPage() {
     try {
       await apiSend(`/api/expenses/${id}/confirm`, "POST");
       await load();
-      setToast("Confirmed — now counted in reports");
+      toast("Confirmed — now counted in reports");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -133,7 +133,7 @@ export default function ExpenseDetailPage() {
     try {
       await apiSend(`/api/expenses/${id}/resolve-fx`, "POST");
       await load();
-      setToast("FX rate applied");
+      toast("FX rate applied");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -335,8 +335,6 @@ export default function ExpenseDetailPage() {
           </div>
         )}
       </div>
-
-      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }

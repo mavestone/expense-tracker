@@ -839,3 +839,47 @@ input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) { 
   .doc table.items { min-width: 440px; }
   .doc .totals { width: 100%; }
 }
+
+/* ── Dialog ──────────────────────────────────────────────────────────────── */
+.dlg-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(10, 14, 16, 0.52); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 18px;
+  animation: dlgIn 0.14s ease;
+}
+.dlg {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised); width: min(460px, 100%); padding: 22px;
+  animation: dlgPop 0.16s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.dlg:focus { outline: none; }
+.dlg-title { margin: 0 0 8px; font-size: 16.5px; font-weight: 700; letter-spacing: -0.015em; }
+.dlg-body { color: var(--ink-2); font-size: 13.5px; line-height: 1.55; }
+.dlg-field { display: flex; flex-direction: column; gap: 5px; margin-top: 15px; font-size: 12.5px; font-weight: 620; color: var(--ink-2); }
+.dlg-field > input, .dlg-field > textarea { font-weight: 400; color: var(--ink); }
+.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+@media (max-width: 480px) { .dlg-actions { flex-direction: column-reverse; } .dlg-actions .btn { width: 100%; } }
+@keyframes dlgIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dlgPop { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+/* ── Toasts ──────────────────────────────────────────────────────────────── */
+.toasts {
+  position: fixed; z-index: 70; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--nav-h) + 16px);
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+  pointer-events: none; width: min(420px, calc(100% - 24px));
+}
+@media (min-width: 861px) { .toasts { bottom: 22px; } }
+.toast {
+  pointer-events: auto; cursor: pointer; font: inherit; text-align: left;
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 11px 14px; border-radius: var(--radius-sm);
+  background: var(--toast-bg); color: #f4f7f7; border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: var(--shadow-raised); font-size: 13.5px; font-weight: 560;
+  animation: toastIn 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.toast.leaving { animation: toastOut 0.2s ease forwards; }
+.toast-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; background: var(--ok); }
+.toast.error .toast-dot { background: var(--danger); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(6px); } }

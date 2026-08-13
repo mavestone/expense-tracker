@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { apiGet, apiSend, ApiError } from "@/lib/client";
 import { formatAUD, parseMoneyToCents } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
+import { useDialog } from "@/components/Dialog";
+import { useToast } from "@/components/Toast";
 
 type FyDoc = {
   id: string;
@@ -56,6 +58,9 @@ export default function FyClosePanel({ fy }: { fy: string }) {
   const [form, setForm] = useState({ lodgedDate: "", atoReceipt: "", taxableIncome: "", taxPayable: "", note: "" });
   const [meta, setMeta] = useState({ title: "", kind: "working_paper", description: "" });
   const fileRef = useRef<HTMLInputElement>(null);
+  const { ask, dialog } = useDialog();
+  const { toast } = useToast();
+  const [showUpload, setShowUpload] = useState(false);
 
   function load() {
     apiGet<State>(`/api/fy/${fy}`).then(setS).catch((e) => setErrors([e.message]));
@@ -81,6 +86,7 @@ export default function FyClosePanel({ fy }: { fy: string }) {
         note: form.note || null,
       });
       setOpen(false);
+      toast(`FY ${fy} finalised`);
       load();
     } catch (e) {
       setErrors(e instanceof ApiError && e.errors?.length ? e.errors : [(e as Error).message]);
@@ -89,18 +95,22 @@ export default function FyClosePanel({ fy }: { fy: string }) {
     }
   }
 
-  async function reopen() {
-    const reason = prompt(`Why is FY ${fy} being reopened? This is recorded in the audit trail.`);
-    if (!reason?.trim()) return;
-    setBusy(true);
-    try {
-      await apiSend(`/api/fy/${fy}`, "POST", { action: "reopen", reason });
-      load();
-    } catch (e) {
-      setErrors([(e as Error).message]);
-    } finally {
-      setBusy(false);
-    }
+  function reopen() {
+    ask({
+      title: `Reopen FY ${fy}?`,
+      body: "The lodgement details are kept — an amended return has to reconcile to them. The reason is recorded in the audit trail.",
+      prompt: { label: "Reason", placeholder: "Ted's Camera tax invoice located", required: true, multiline: true },
+      confirmLabel: "Reopen year",
+      onConfirm: async (reason) => {
+        try {
+          await apiSend(`/api/fy/${fy}`, "POST", { action: "reopen", reason });
+          toast(`FY ${fy} reopened`);
+          load();
+        } catch (e) {
+          setErrors([(e as Error).message]);
+        }
+      },
+    });
   }
 
   async function upload(file: File) {
@@ -118,6 +128,8 @@ export default function FyClosePanel({ fy }: { fy: string }) {
         throw new Error(b?.error || `Upload failed (${res.status})`);
       }
       setMeta({ title: "", kind: "working_paper", description: "" });
+      setShowUpload(false);
+      toast("Document attached");
       load();
     } catch (e) {
       setErrors([(e as Error).message]);
@@ -232,6 +244,7 @@ export default function FyClosePanel({ fy }: { fy: string }) {
         </table>
       )}
 
+      {showUpload && (
       <div className="grid3 mt1">
         <label>
           Title
@@ -248,6 +261,7 @@ export default function FyClosePanel({ fy }: { fy: string }) {
           <input value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} />
         </label>
       </div>
+      )}
       <input
         ref={fileRef}
         type="file"
@@ -260,11 +274,19 @@ export default function FyClosePanel({ fy }: { fy: string }) {
         }}
       />
       <div className="btnrow">
-        <button className="btn ghost small" onClick={() => fileRef.current?.click()} disabled={busy}>
-          {busy ? "Uploading…" : "+ Attach document"}
-        </button>
-        <span className="muted small">PDF, image or text. Up to 15 MB. Stored immutably alongside the receipts.</span>
+        {showUpload ? (
+          <>
+            <button className="btn small" onClick={() => fileRef.current?.click()} disabled={busy}>
+              {busy ? "Uploading…" : "Choose file"}
+            </button>
+            <button className="btn ghost small" onClick={() => setShowUpload(false)} disabled={busy}>Cancel</button>
+            <span className="muted small">PDF, image or text. Up to 15 MB.</span>
+          </>
+        ) : (
+          <button className="btn ghost small" onClick={() => setShowUpload(true)}>+ Attach document</button>
+        )}
       </div>
+      {dialog}
     </div>
   );
 }

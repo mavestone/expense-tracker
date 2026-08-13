@@ -7,6 +7,8 @@ import ReceiptUploader, { type StagedReceipt } from "@/components/ReceiptUploade
 import { formatAUD, formatCurrency, parseMoneyToCents, centsToDecimalString } from "@/lib/money";
 import { formatDateAU, financialYear } from "@/lib/fy";
 import { COMMON_CURRENCIES, type MetaDto } from "@/lib/types";
+import { useDialog } from "@/components/Dialog";
+import { useToast } from "@/components/Toast";
 
 type IncomeDto = {
   id: string;
@@ -79,8 +81,9 @@ export default function IncomePage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const { ask, dialog } = useDialog();
+  const { toast } = useToast();
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [staged, setStaged] = useState<StagedReceipt | null>(null);
 
   const load = useCallback(async () => {
@@ -102,11 +105,6 @@ export default function IncomePage() {
     const t = setTimeout(load, q ? 300 : 0);
     return () => clearTimeout(t);
   }, [load, q]);
-
-  function flash(m: string) {
-    setToast(m);
-    setTimeout(() => setToast(null), 2600);
-  }
 
   function openNew() {
     setForm({ ...EMPTY, dateEarned: meta?.today ?? "", gstTreatment: meta?.settings.gst_registered ? "gst" : "no_gst" });
@@ -171,7 +169,7 @@ export default function IncomePage() {
       setFormOpen(false);
       setStaged(null);
       await load();
-      flash(editingId ? "Income updated" : "Income recorded");
+      toast(editingId ? "Income updated" : "Income recorded");
     } catch (err) {
       setError(err instanceof ApiError ? (err.errors?.join(" ") ?? err.message) : (err as Error).message);
     } finally {
@@ -179,28 +177,46 @@ export default function IncomePage() {
     }
   }
 
-  async function markPaid(r: IncomeDto) {
-    const d = prompt("Date paid (YYYY-MM-DD):", meta?.today ?? "");
-    if (!d) return;
-    try {
-      await apiSend(`/api/income/${r.id}`, "PATCH", { datePaid: d });
-      await load();
-      flash("Marked as paid");
-    } catch (e) {
-      setError((e as Error).message);
-    }
+  function markPaid(r: IncomeDto) {
+    ask({
+      title: "Mark as paid",
+      body: <><b>{r.clientName}</b> — {r.description}</>,
+      prompt: { label: "Date the money arrived", type: "date", defaultValue: meta?.today ?? "", required: true },
+      confirmLabel: "Mark paid",
+      onConfirm: async (d) => {
+        try {
+          await apiSend(`/api/income/${r.id}`, "PATCH", { datePaid: d });
+          await load();
+          toast("Marked as paid");
+        } catch (e) {
+          setError((e as Error).message);
+        }
+      },
+    });
   }
 
-  async function doVoid(r: IncomeDto) {
-    const reason = prompt(`Void "${r.clientName} — ${r.description}"?\n\nNothing is deleted; it stays in the audit view with your reason.\n\nReason:`);
-    if (!reason?.trim()) return;
-    try {
-      await apiSend(`/api/income/${r.id}/void`, "POST", { reason });
-      await load();
-      flash("Record voided");
-    } catch (e) {
-      setError((e as Error).message);
-    }
+  function doVoid(r: IncomeDto) {
+    ask({
+      title: "Void this income record?",
+      body: (
+        <>
+          <b>{r.clientName}</b> — {r.description}. Nothing is deleted; it stays in the audit view with your reason,
+          and drops out of every total.
+        </>
+      ),
+      prompt: { label: "Reason", placeholder: "Raised in error against the wrong client", required: true, multiline: true },
+      confirmLabel: "Void record",
+      danger: true,
+      onConfirm: async (reason) => {
+        try {
+          await apiSend(`/api/income/${r.id}/void`, "POST", { reason });
+          await load();
+          toast("Record voided");
+        } catch (e) {
+          setError((e as Error).message);
+        }
+      },
+    });
   }
 
   if (!meta || !data) return <div className="empty"><span className="spin" /> Loading…</div>;
@@ -374,8 +390,7 @@ export default function IncomePage() {
           ))}
         </div>
       </div>
-
-      {toast && <div className="toast">{toast}</div>}
+      {dialog}
     </div>
   );
 }

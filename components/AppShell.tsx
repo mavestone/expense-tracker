@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { ToastProvider } from "@/components/Toast";
 
 /**
  * Two sections, one system. **Tax** is the compliance ledger — everything that
@@ -69,6 +70,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
+    <ToastProvider>
     <div className="shell">
       <header className="topbar">
         <Link href="/" className="brand" style={{ textDecoration: "none" }}>
@@ -154,5 +156,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       )}
     </div>
+    </ToastProvider>
   );
 }

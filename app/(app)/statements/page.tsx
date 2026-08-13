@@ -5,6 +5,8 @@ import Link from "next/link";
 import { apiGet } from "@/lib/client";
 import { formatAUD, formatCurrency } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
+import { useDialog } from "@/components/Dialog";
+import { useToast } from "@/components/Toast";
 
 type Progress = { total: number; unreviewed: number; logged: number; personal: number; ignored: number; donePct: number };
 
@@ -68,6 +70,8 @@ export default function StatementsPage() {
   const [minDollars, setMinDollars] = useState("");
   const [page, setPage] = useState<TxnPage | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const { ask, dialog } = useDialog();
+  const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [reasonFor, setReasonFor] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -101,13 +105,28 @@ export default function StatementsPage() {
     return () => clearTimeout(t);
   }, [loadTxns, q]);
 
-  async function removeStatement(id: string, filename: string) {
-    if (!confirm(`Remove "${filename}" and its parsed lines? The tracker records it matched are untouched.`)) return;
+  function removeStatement(id: string, filename: string) {
+    ask({
+      title: "Remove this statement?",
+      body: (
+        <>
+          <b>{filename}</b> and its parsed lines will be removed. Expense and income records it matched are
+          untouched — only the statement and its reconciliation are.
+        </>
+      ),
+      confirmLabel: "Remove statement",
+      danger: true,
+      onConfirm: () => doRemoveStatement(id),
+    });
+  }
+
+  async function doRemoveStatement(id: string) {
     setBusy(id);
     try {
       const res = await fetch(`/api/statements/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error ?? "Could not remove");
       apiGet<Overview>(`/api/statements${fy ? `?fy=${fy}` : ""}`).then(setOv).catch(() => {});
+      toast("Statement removed");
       loadTxns();
     } catch (e) {
       setError((e as Error).message);
@@ -394,6 +413,7 @@ export default function StatementsPage() {
           </div>
         </>
       )}
+      {dialog}
     </div>
   );
 }

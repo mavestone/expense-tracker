@@ -9,6 +9,8 @@ import { formatDateAU, fyQuarter } from "@/lib/fy";
 import { formatAbn } from "@/lib/abn";
 import ReceiptUploader, { type StagedReceipt } from "@/components/ReceiptUploader";
 import type { AuditDto } from "@/lib/types";
+import { useToast } from "@/components/Toast";
+import { useDialog } from "@/components/Dialog";
 
 type IncomeDto = {
   id: string;
@@ -66,13 +68,14 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function IncomeDetailPage() {
+  const { ask, dialog } = useDialog();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { toast } = useToast();
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [staged, setStaged] = useState<StagedReceipt | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
   const load = useCallback(async () => {
@@ -94,11 +97,6 @@ export default function IncomeDetailPage() {
   const current = data.documents.find((d) => d.isCurrent);
   const isVoid = r.status === "void";
 
-  function flash(m: string) {
-    setToast(m);
-    setTimeout(() => setToast(null), 2600);
-  }
-
   async function upload() {
     if (!staged) return;
     setBusy("Uploading…");
@@ -106,7 +104,7 @@ export default function IncomeDetailPage() {
       await apiUpload(`/api/income/${id}/documents`, staged.file, staged.filename);
       setStaged(null);
       await load();
-      flash(current ? "Invoice replaced (old version kept)" : "Invoice attached");
+      toast(current ? "Invoice replaced (old version kept)" : "Invoice attached");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -114,28 +112,40 @@ export default function IncomeDetailPage() {
     }
   }
 
-  async function markPaid() {
-    const d = prompt("Date paid (YYYY-MM-DD):", new Date().toISOString().slice(0, 10));
-    if (!d) return;
+  function markPaid() {
+    ask({
+      title: "Mark as paid",
+      prompt: { label: "Date the money arrived", type: "date", defaultValue: new Date().toISOString().slice(0, 10), required: true },
+      confirmLabel: "Mark paid",
+      onConfirm: async (d) => {
     try {
       await apiSend(`/api/income/${id}`, "PATCH", { datePaid: d });
       await load();
-      flash("Marked as paid");
+      toast("Marked as paid");
     } catch (e) {
       setError((e as Error).message);
     }
+      },
+    });
   }
 
-  async function doVoid() {
-    const reason = prompt("Void this income record?\n\nNothing is deleted — it stays in the audit view with your reason.\n\nReason:");
-    if (!reason?.trim()) return;
-    try {
-      await apiSend(`/api/income/${id}/void`, "POST", { reason });
-      await load();
-      flash("Record voided");
-    } catch (e) {
-      setError((e as Error).message);
-    }
+  function doVoid() {
+    ask({
+      title: "Void this income record?",
+      body: "Nothing is deleted — it stays in the audit view with your reason, and drops out of every total.",
+      prompt: { label: "Reason", placeholder: "Raised in error against the wrong client", required: true, multiline: true },
+      confirmLabel: "Void record",
+      danger: true,
+      onConfirm: async (reason) => {
+        try {
+          await apiSend(`/api/income/${id}/void`, "POST", { reason });
+          await load();
+          toast("Record voided");
+        } catch (e) {
+          setError((e as Error).message);
+        }
+      },
+    });
   }
 
   return (
@@ -286,8 +296,7 @@ export default function IncomeDetailPage() {
           </div>
         )}
       </div>
-
-      {toast && <div className="toast">{toast}</div>}
+      {dialog}
     </div>
   );
 }

@@ -152,8 +152,6 @@ function ReportsInner() {
         ))}
       </div>
 
-      <FyClosePanel fy={fy} />
-
       <div className="card mb2">
         <h2>Exports</h2>
         <div className="btnrow">
@@ -551,6 +549,7 @@ function ReportsInner() {
           )}
         </div>
       )}
+      <FyClosePanel fy={fy} />
     </div>
   );
 }

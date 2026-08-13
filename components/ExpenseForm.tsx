@@ -10,6 +10,7 @@ import { isValidAbn } from "@/lib/abn";
 import { COMMON_CURRENCIES, type ExpenseDto, type MetaDto } from "@/lib/types";
 import ReceiptUploader, { type StagedReceipt } from "./ReceiptUploader";
 import type { OcrSuggestion } from "@/lib/ocr";
+import { useToast } from "@/components/Toast";
 
 type FxState =
   | { status: "idle" }
@@ -18,11 +19,11 @@ type FxState =
   | { status: "error"; message: string };
 
 export default function ExpenseForm({ mode, initial }: { mode: "create" | "edit"; initial?: ExpenseDto }) {
+  const { toast } = useToast();
   const router = useRouter();
   const [meta, setMeta] = useState<MetaDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
   // ── Core fields ──────────────────────────────────────────────────────────
   const [date, setDate] = useState(initial?.dateIncurred ?? "");
@@ -212,7 +213,7 @@ export default function ExpenseForm({ mode, initial }: { mode: "create" | "edit"
         const res = await apiSend<{ expense: ExpenseDto }>("/api/expenses", "POST", { input });
         id = res.expense.id;
         if (staged) {
-          setToast("Uploading receipt…");
+          toast("Uploading receipt…");
           await apiUpload(`/api/expenses/${id}/receipts`, staged.file, staged.filename);
         }
         remember("lastSupplier", supplier);
@@ -523,8 +524,6 @@ export default function ExpenseForm({ mode, initial }: { mode: "create" | "edit"
           </button>
         </div>
       </div>
-
-      {toast && <div className="toast">{toast}</div>}
     </form>
   );
 }
