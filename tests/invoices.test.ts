@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { invoiceTotals, lineAmountCents, validateInvoiceInput, type InvoiceInput } from "../lib/invoices";
+import { invoiceTotals, lineAmountCents, validateInvoiceInput, type InvoiceInput, invoicePdfFilename } from "../lib/invoices";
 import { validateClientInput, type ClientInput } from "../lib/clients";
 
 const line = (unit: number, qty?: number) => ({ description: "Edit", unitAmountCents: unit, quantityMilli: qty });
@@ -142,5 +142,33 @@ describe("invoice numbering — the sequence must survive real-world refs", () =
 
   it("ignores refs that merely start with the same letters", () => {
     expect("KCX_01".startsWith("KC_")).toBe(false);
+  });
+});
+
+describe("download filename", () => {
+  const f = (number: string, name: string) => invoicePdfFilename({ number, client: { name } });
+
+  it("names the file after the invoice and the client", () => {
+    expect(f("KC_04", "Kirin Consulting LLC")).toBe("KC_04-Kirin-Consulting-LLC.pdf");
+  });
+
+  it("strips anything that could break a Content-Disposition header", () => {
+    // A quote or a newline in a client name would otherwise let the value
+    // escape the header it sits in.
+    expect(f("AG_01", 'Atomik "Growth" Ltd')).toBe("AG_01-Atomik-Growth-Ltd.pdf");
+    expect(f("AG_01", "A/B\nCo")).toBe("AG_01-A-B-Co.pdf");
+    expect(f("AG_01", "Ünïcodé Studio")).toBe("AG_01-Unicode-Studio.pdf");
+  });
+
+  it("keeps an accented name readable rather than gutting it", () => {
+    expect(f("KC_05", "Café Noir Films")).toBe("KC_05-Cafe-Noir-Films.pdf");
+  });
+
+  it("collapses runs and trims stray hyphens", () => {
+    expect(f("BA_02", "  The   Film Co.  ")).toBe("BA_02-The-Film-Co.pdf");
+  });
+
+  it("still produces a filename when the client name is unusable", () => {
+    expect(f("RMR_04", "———")).toBe("RMR_04.pdf");
   });
 });

@@ -150,7 +150,8 @@ export default function InvoiceDetailPage() {
       </div>
 
       <div className="btnrow mt2">
-        <Link href={`/invoices/${inv.id}/print`} className="btn">View / print PDF</Link>
+        <a href={`/api/invoices/${inv.id}/pdf`} className="btn">⬇ Download PDF</a>
+        <Link href={`/invoices/${inv.id}/print`} className="btn ghost">Preview</Link>
         {inv.status === "draft" && <button className="btn ghost" onClick={() => setEditing(true)}>Edit</button>}
         {inv.status === "draft" && (
           <button className="btn" onClick={() => act({ action: "send" })} disabled={busy}>

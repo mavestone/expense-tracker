@@ -396,3 +396,22 @@ export async function listInvoices(
   }
   return { invoices: withClient, byCurrency: [...byCurrency.values()].sort((a, b) => a.currency.localeCompare(b.currency)) };
 }
+
+/**
+ * Filename for a downloaded invoice — "KC_04-Kirin-Consulting-LLC.pdf".
+ *
+ * Recognisable in a downloads folder months later, and safe as a header value:
+ * anything outside [A-Za-z0-9] is collapsed to a hyphen, so a client name with
+ * a quote or a slash in it cannot break the Content-Disposition header.
+ */
+export function invoicePdfFilename(inv: { number: string; client: { name: string } }): string {
+  // Decompose accents first so "Café Noir" becomes "Cafe-Noir" rather than
+  // "Caf-Noir" — stripping the letter along with its accent mangles the name.
+  const client = (inv.client?.name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const number = inv.number.replace(/[^A-Za-z0-9_]+/g, "-");
+  return client ? `${number}-${client}.pdf` : `${number}.pdf`;
+}

@@ -29,8 +29,10 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
     <>
       <div className="btnrow noprint mb2">
         <Link href={`/invoices/${inv.id}`} className="btn ghost small">← Back</Link>
+        <a href={`/api/invoices/${inv.id}/pdf`} className="btn small">⬇ Download PDF</a>
         <span className="muted small">
-          Print this page and choose “Save as PDF”. {inv.status === "draft" && <b>This invoice is still a draft.</b>}
+          This is a preview — the download is a generated PDF, not a screenshot of this page.
+          {inv.status === "draft" && <b> This invoice is still a draft.</b>}
         </span>
       </div>
 

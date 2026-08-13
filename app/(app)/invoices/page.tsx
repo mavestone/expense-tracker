@@ -116,6 +116,7 @@ export default function InvoicesPage() {
                 <th>Due</th>
                 <th className="r">Amount</th>
                 <th>Status</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -133,6 +134,9 @@ export default function InvoicesPage() {
                     <td className="r nowrap">{formatCurrency(i.totalCents, i.currency)}</td>
                     <td>
                       <span className={`pill ${overdue ? "overdue" : i.status}`}>{overdue ? "overdue" : i.status}</span>
+                    </td>
+                    <td className="r nowrap">
+                      <a className="btn ghost small" href={`/api/invoices/${i.id}/pdf`} title="Download PDF">PDF</a>
                     </td>
                   </tr>
                 );
