@@ -93,7 +93,8 @@ export default function HomePage() {
         <div>
           <h1 className="greet">
             {hello ?? "Overview"}
-            {hello && ownerName ? `, ${ownerName}` : ""}
+            {/* Only the first name — the full name is what prints on invoices. */}
+            {hello && ownerName ? `, ${ownerName.trim().split(/\s+/)[0]}` : ""}
           </h1>
           <p className="greet-sub muted small">
             Here is where FY {activeFy} stands.

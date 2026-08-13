@@ -6,7 +6,12 @@ import { apiGet, apiSend, apiUpload, ApiError } from "@/lib/client";
 type Settings = Record<string, string | number | boolean>;
 
 const TEXT_FIELDS: { key: string; label: string; hint?: string; rows?: number; placeholder?: string }[] = [
-  { key: "owner_name", label: "Your first name", hint: "Used for the greeting on the overview page." },
+  {
+    key: "owner_name",
+    label: "Your name",
+    hint: "Prints above the business name on invoices. The overview greets you by your first name.",
+    placeholder: "Liam Leslie",
+  },
   { key: "business_name", label: "Business name", placeholder: "Mavestone" },
   { key: "business_abn", label: "ABN", placeholder: "97 834 141 404" },
   { key: "business_email", label: "Email" },

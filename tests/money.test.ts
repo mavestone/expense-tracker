@@ -1,16 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  parseMoneyToCents,
-  centsToDecimalString,
-  divRound,
-  applyRate,
-  invertRate,
-  applyBp,
-  percentToBp,
-  bpToPercentString,
-  normalizeRate,
-  isValidRate,
-} from "../lib/money";
+import { parseMoneyToCents, centsToDecimalString, divRound, applyRate, invertRate, applyBp, percentToBp, bpToPercentString, normalizeRate, isValidRate, formatCurrency, currencySymbol } from "../lib/money";
 
 describe("parseMoneyToCents", () => {
   it("parses plain and formatted amounts", () => {
@@ -108,5 +97,43 @@ describe("centsToDecimalString", () => {
     expect(centsToDecimalString(12345)).toBe("123.45");
     expect(centsToDecimalString(5)).toBe("0.05");
     expect(centsToDecimalString(0)).toBe("0.00");
+  });
+});
+
+describe("currency display", () => {
+  it("uses the symbol rather than the ISO code", () => {
+    // en-AU prints "USD 2,000.00" by default, which is what appeared on the
+    // invoice. The symbol is what a client expects to see.
+    expect(formatCurrency(200000, "USD")).toBe("US$2,000.00");
+    expect(formatCurrency(3312, "GBP")).toBe("£33.12");
+    expect(formatCurrency(5000, "EUR")).toBe("€50.00");
+  });
+
+  it("keeps AUD as the bare dollar and disambiguates the others", () => {
+    // Both are dollars; on a page that shows AUD totals beside a USD invoice
+    // a bare "$" on each would be genuinely ambiguous.
+    expect(formatCurrency(200000, "AUD")).toBe("$2,000.00");
+    expect(formatCurrency(200000, "NZD")).toBe("NZ$2,000.00");
+  });
+
+  it("puts the minus sign outside the symbol", () => {
+    expect(formatCurrency(-5000, "USD")).toBe("-US$50.00");
+  });
+
+  it("respects each currency's own decimal places", () => {
+    // JPY has none — treating every currency as 2dp would print ¥1,500.00.
+    expect(formatCurrency(150000, "JPY")).toBe("¥1,500");
+  });
+
+  it("falls back to the code for an unrecognised currency", () => {
+    // Intl separates the code from the amount with a non-breaking space, which
+    // is what we want in HTML — normalised here so the assertion is readable.
+    expect(formatCurrency(1000, "ZZZ").replace(/\u00a0/g, " ")).toBe("ZZZ 10.00");
+  });
+
+  it("exposes the symbol alone for labelling an input", () => {
+    expect(currencySymbol("AUD")).toBe("$");
+    expect(currencySymbol("USD")).toBe("US$");
+    expect(currencySymbol("GBP")).toBe("£");
   });
 });

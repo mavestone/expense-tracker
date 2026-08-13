@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiGet, apiSend, ApiError } from "@/lib/client";
-import { formatCurrency, parseMoneyToCents, centsToDecimalString } from "@/lib/money";
+import { formatCurrency, currencySymbol, parseMoneyToCents, centsToDecimalString } from "@/lib/money";
 import ClientQuickAdd, { type NewClient } from "@/components/ClientQuickAdd";
 
 type Client = {
@@ -221,9 +221,9 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
           <label>
             Currency
             <select value={v.currency} onChange={(e) => setV({ ...v, currency: e.target.value })}>
-              <option value="AUD">AUD</option>
-              <option value="USD">USD</option>
-              <option value="GBP">GBP</option>
+              <option value="AUD">AUD — {currencySymbol("AUD")}</option>
+              <option value="USD">USD — {currencySymbol("USD")}</option>
+              <option value="GBP">GBP — {currencySymbol("GBP")}</option>
             </select>
           </label>
         </div>
@@ -244,7 +244,7 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
             <tr>
               <th>Description</th>
               <th className="narrow">Qty</th>
-              <th className="narrow">Unit price</th>
+              <th className="narrow">Unit price ({currencySymbol(v.currency)})</th>
               <th className="r narrow">Amount</th>
               <th />
             </tr>

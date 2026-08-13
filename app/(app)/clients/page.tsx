@@ -171,9 +171,9 @@ export default function ClientsPage() {
             <label>
               Default currency
               <select value={form.defaultCurrency} onChange={(e) => setForm({ ...form, defaultCurrency: e.target.value })}>
-                <option value="AUD">AUD — Australian dollar</option>
-                <option value="USD">USD — US dollar</option>
-                <option value="GBP">GBP — pound sterling</option>
+                <option value="AUD">AUD $ — Australian dollar</option>
+                <option value="USD">USD US$ — US dollar</option>
+                <option value="GBP">GBP £ — pound sterling</option>
               </select>
             </label>
             <label>

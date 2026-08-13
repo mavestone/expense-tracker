@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiSend, ApiError } from "@/lib/client";
+import { currencySymbol } from "@/lib/money";
 
 export type NewClient = {
   id: string;
@@ -118,9 +119,9 @@ export default function ClientQuickAdd({
         <label>
           Currency
           <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            <option value="AUD">AUD</option>
-            <option value="USD">USD</option>
-            <option value="GBP">GBP</option>
+            <option value="AUD">AUD — {currencySymbol("AUD")}</option>
+            <option value="USD">USD — {currencySymbol("USD")}</option>
+            <option value="GBP">GBP — {currencySymbol("GBP")}</option>
           </select>
         </label>
         <label>

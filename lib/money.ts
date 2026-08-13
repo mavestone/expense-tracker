@@ -30,12 +30,59 @@ export function formatAUD(cents: number): string {
   return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(cents / 100);
 }
 
-/** Display an amount in an arbitrary ISO currency, e.g. "US$52.99". */
+/**
+ * A bare "$" belongs to AUD here, so every other dollar currency is prefixed
+ * with its country. Without this an en-AU locale prints "USD 2,000.00" on an
+ * invoice, and forcing the narrow symbol alone would print "$2,000.00" for
+ * both AUD and USD on the same page.
+ */
+const DOLLAR_HINT: Record<string, string> = {
+  USD: "US",
+  NZD: "NZ",
+  CAD: "CA",
+  SGD: "S",
+  HKD: "HK",
+  FJD: "FJ",
+};
+
+/** Display an amount in an arbitrary ISO currency, e.g. "US$52.99", "£33.12". */
 export function formatCurrency(cents: number, currency: string): string {
+  const code = (currency || "").toUpperCase();
   try {
-    return new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(cents / 100);
+    // narrowSymbol gives "£"/"€"/"$" rather than the ISO code. Decimal places
+    // still come from the currency's own rules, so zero-decimal currencies
+    // such as JPY are unaffected.
+    const out = new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "narrowSymbol",
+    }).format(cents / 100);
+
+    if (code !== "AUD" && /^-?\s*\$/.test(out)) {
+      const hint = DOLLAR_HINT[code];
+      // An unknown dollar currency keeps its code rather than being guessed at.
+      return out.replace("$", hint ? `${hint}$` : `${code} `).trimEnd();
+    }
+    return out;
   } catch {
-    return `${currency} ${centsToDecimalString(cents)}`;
+    return `${code} ${centsToDecimalString(cents)}`;
+  }
+}
+
+/** The symbol alone, for labelling an input rather than an amount. */
+export function currencySymbol(currency: string): string {
+  const code = (currency || "").toUpperCase();
+  try {
+    const parts = new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "narrowSymbol",
+    }).formatToParts(0);
+    const sym = parts.find((p) => p.type === "currency")?.value ?? code;
+    if (code !== "AUD" && sym === "$") return `${DOLLAR_HINT[code] ?? ""}$` || code;
+    return sym;
+  } catch {
+    return code;
   }
 }
 

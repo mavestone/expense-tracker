@@ -39,7 +39,14 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {s.invoice_logo ? <img src="/api/branding/logo" alt={fromName} className="doc-logo" /> : null}
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{fromName}</div>
+            {s.owner_name ? (
+              <>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{s.owner_name}</div>
+                <div style={{ fontWeight: 600 }}>{fromName}</div>
+              </>
+            ) : (
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{fromName}</div>
+            )}
             {s.business_abn && <div>ABN {s.business_abn}</div>}
             {s.business_address && <div style={{ whiteSpace: "pre-wrap" }}>{s.business_address}</div>}
             {s.business_email && <div>{s.business_email}</div>}
