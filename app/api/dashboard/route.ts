@@ -7,6 +7,7 @@ import { currentFy } from "@/lib/fy";
 import { getSettings } from "@/lib/settings";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { applyBp } from "@/lib/money";
+import { actionStack } from "@/lib/actions";
 
 export const runtime = "nodejs";
 
@@ -47,7 +48,10 @@ export const GET = api(async (req) => {
       .where(and(eq(schema.income.financialYear, fy), eq(schema.income.status, "active"), isNull(schema.income.datePaid))),
   ]);
 
-  const dashReceipts = await receiptCountMap(fyRows.map((r) => r.id));
+  const [dashReceipts, actions] = await Promise.all([
+    receiptCountMap(fyRows.map((r) => r.id)),
+    actionStack(fy),
+  ]);
   const gstFlagCents = (await getSettings()).gst_receipt_flag_cents;
 
   const totals = {
@@ -92,6 +96,7 @@ export const GET = api(async (req) => {
 
   return json({
     fy,
+    actions,
     totals,
     income: incomeTotals,
     alerts: {

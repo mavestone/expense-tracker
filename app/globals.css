@@ -404,45 +404,8 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 15px 0; }
   font-size: 10.5px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--ink-3); background: var(--chip); border-radius: 999px; padding: 3px 9px;
 }
-.taxsummary {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 14px; margin: 14px 0 4px;
-}
-.taxsummary .tlabel { font-size: 11.5px; color: var(--ink-3); font-weight: 600; letter-spacing: 0.02em; }
-.taxsummary .tvalue { font-size: 20px; font-weight: 760; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
-.taxsummary .tvalue.accent { color: var(--accent-strong); }
-.taxsummary .tsub { font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
 
-.ladder { margin: 16px 0 4px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
-.ladder .rung {
-  display: flex; align-items: center; gap: 12px;
-  padding: 9px 12px; font-size: 13px;
-  border-top: 1px solid var(--line);
-}
-.ladder .rung:first-child { border-top: 0; }
-.ladder .rung .rate {
-  font-weight: 750; font-variant-numeric: tabular-nums; min-width: 42px;
-  color: var(--ink-3);
-}
-.ladder .rung .range { color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.ladder .rung.passed { background: var(--hover); }
-.ladder .rung.passed .rate, .ladder .rung.passed .range { color: var(--ink-2); }
-.ladder .rung.current { background: var(--accent-soft); }
-.ladder .rung.current .rate { color: var(--accent-strong); }
-.ladder .rung.current .range { color: var(--ink); font-weight: 620; }
-.ladder .rung .here {
-  margin-left: auto; display: flex; align-items: center; gap: 8px;
-  font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--accent-strong); white-space: nowrap;
-}
-.ladder .rung .here .bar {
-  display: block; width: 84px; height: 6px; border-radius: 999px;
-  background: var(--accent-ring); overflow: hidden;
-}
-.ladder .rung .here .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
 
-.taxnote { font-size: 12.5px; color: var(--ink-2); margin: 12px 0 0; line-height: 1.5; }
-.taxnote.muted { font-size: 11.5px; color: var(--ink-3); border-top: 1px solid var(--line); padding-top: 10px; margin-top: 14px; }
 
 @media (max-width: 560px) {
   .ladder .rung { flex-wrap: wrap; }
@@ -1081,4 +1044,90 @@ h1, h2, h3,
   .topbar .brand-name { display: none; }
   .topbar .brand { flex: none; }
   .topbar .actions { flex: 1; }
+}
+
+/* ═══ Overview — action stack and FY pair ═════════════════════════════════
+   The screen answers one question: am I behind? Most weeks the answer is no,
+   so "nothing needs a decision" is a designed state, not a fallback. */
+.overview { display: flex; flex-direction: column; gap: 16px; }
+.overview .section-head { margin: 0; }
+
+.actionstack { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.act { padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; border-top: 3px solid var(--line-2); }
+.act.danger { border-top-color: var(--danger); }
+.act.accent { border-top-color: var(--accent); }
+.act.warn   { border-top-color: var(--warn); }
+.act-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3);
+}
+.act.danger .act-label { color: var(--danger-ink); }
+.act.warn .act-label { color: var(--warn); }
+.act-figure {
+  font-family: var(--font-display), inherit; font-size: 29px; font-weight: 700;
+  letter-spacing: -0.025em; font-variant-numeric: tabular-nums; line-height: 1.05;
+  display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;
+}
+.act-of { font-family: inherit; font-size: 13px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+.act-context { font-size: 13px; color: var(--ink-2); line-height: 1.5; display: flex; flex-direction: column; gap: 2px; }
+.act .btnrow { margin-top: auto; padding-top: 4px; }
+.act .btn { min-height: var(--tap-min); }
+
+/* Progress toward a queue being empty. The lime end is the only place the
+   secondary accent appears on this screen. */
+.pbar { height: 8px; border-radius: 999px; background: var(--chip); overflow: hidden; }
+.pbar > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+
+.allclear { text-align: center; padding: 34px 22px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.allclear-mark {
+  width: 52px; height: 52px; border-radius: 999px; display: grid; place-items: center;
+  background: var(--ok-soft); color: var(--ok-ink); margin-bottom: 2px;
+}
+.allclear h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.allclear p { margin: 0; max-width: 46ch; color: var(--ink-2); font-size: 13.5px; line-height: 1.55; }
+.allclear .btnrow { margin-top: 8px; }
+.allclear .btn { min-height: var(--tap-min); }
+
+.fypair { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; }
+.fycard { display: flex; flex-direction: column; gap: 10px; }
+.fy-head { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.fy-tax { text-align: right; max-width: 200px; }
+.fy-figure {
+  font-family: var(--font-display), inherit; font-size: 31px; font-weight: 700;
+  letter-spacing: -0.025em; font-variant-numeric: tabular-nums; line-height: 1.08;
+}
+.fy-figure.ok { color: var(--ok-ink); }
+.fy-note { margin: 2px 0 0; font-size: 12px; color: var(--ink-3); line-height: 1.45; }
+.fy-rule { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+.fy-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-variant-numeric: tabular-nums; }
+.fy-foot { margin: auto 0 0; padding-top: 8px; }
+
+/* One bordered element, not four — 1px gaps over a --line ground. */
+.fystrip {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--line); border-radius: var(--radius-sm); overflow: hidden; margin-top: 4px;
+}
+.fystrip > div { background: var(--surface-2); padding: 11px 12px; display: flex; flex-direction: column; gap: 2px; }
+.fystrip > div.blocked { background: var(--warn-soft); }
+.fystrip > div.blocked .k, .fystrip > div.blocked .v, .fystrip > div.blocked .s { color: var(--warn); }
+.fystrip .k { font-size: 10.5px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); }
+.fystrip .v { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.015em; }
+.fystrip .v.ok { color: var(--ok-ink); }
+.fystrip .s { font-size: 11.5px; color: var(--ink-3); }
+
+.taxbadge.ok { background: var(--ok-soft); color: var(--ok-ink); }
+
+@media (max-width: 860px) {
+  .fypair { grid-template-columns: 1fr; }
+  .fystrip { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .actionstack { grid-template-columns: 1fr; gap: 12px; }
+  /* A left border reads better than a top border in a stacked column. */
+  .act { border-top: 1px solid var(--line); border-left: 3px solid var(--line-2); }
+  .act.danger { border-left-color: var(--danger); border-top-color: var(--line); }
+  .act.accent { border-left-color: var(--accent); border-top-color: var(--line); }
+  .act.warn   { border-left-color: var(--warn); border-top-color: var(--line); }
+  .fy-head { flex-direction: column; gap: 12px; }
+  .fy-tax { text-align: left; max-width: none; }
 }
