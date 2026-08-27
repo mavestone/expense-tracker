@@ -390,7 +390,7 @@ export async function listExpenses(filters: ExpenseFilters = {}) {
   let result = page.map((r) => ({ ...r, receiptCount: receiptMap.get(r.id) ?? 0 }));
   if (filters.missingReceiptOnly) result = result.filter((r) => r.receiptCount === 0);
 
-  const [totals] = await d
+  const [sums] = await d
     .select({
       count: sql<number>`count(*)`,
       audTotal: sql<number>`coalesce(sum(${schema.expenses.audAmountCents}), 0)`,
@@ -399,6 +399,38 @@ export async function listExpenses(filters: ExpenseFilters = {}) {
     .from(schema.expenses)
     .where(and(...conds));
 
+  // GST claimed cannot be summed in SQL: a credit over the threshold with no
+  // tax invoice is not claimable, and that depends on the receipts table. The
+  // list has to foot to the figure that goes on the BAS, so it is computed
+  // across every matching row rather than the page.
+  const gstRows = await d
+    .select({
+      id: schema.expenses.id,
+      gstTreatment: schema.expenses.gstTreatment,
+      gstAmountCents: schema.expenses.gstAmountCents,
+      businessUseBp: schema.expenses.businessUseBp,
+      audAmountCents: schema.expenses.audAmountCents,
+    })
+    .from(schema.expenses)
+    .where(and(...conds));
+  const gstReceipts = await receiptCountMap(gstRows.map((r) => r.id));
+  const flagCents = (await getSettings()).gst_receipt_flag_cents;
+
+  let gstClaimedTotal = 0;
+  let gstBlockedTotal = 0;
+  let blockedCount = 0;
+  for (const r of gstRows) {
+    if (r.gstTreatment !== "gst") continue;
+    const claimable = applyBp(r.gstAmountCents, r.businessUseBp);
+    if (r.audAmountCents > flagCents && (gstReceipts.get(r.id) ?? 0) === 0) {
+      gstBlockedTotal += claimable;
+      blockedCount++;
+    } else {
+      gstClaimedTotal += claimable;
+    }
+  }
+
+  const totals = { ...sums, gstClaimedTotal, gstBlockedTotal, blockedCount };
   return { expenses: result, hasMore, totals };
 }
 

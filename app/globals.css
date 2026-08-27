@@ -1131,3 +1131,94 @@ h1, h2, h3,
   .fy-head { flex-direction: column; gap: 12px; }
   .fy-tax { text-align: left; max-width: none; }
 }
+
+/* ═══ Expenses list ═══════════════════════════════════════════════════════ */
+.expenses { display: flex; flex-direction: column; gap: 14px; }
+.expenses .section-head { margin: 0; }
+
+/* Applied filters, stated in words and removable. .filters holds controls;
+   this holds what those controls currently mean. */
+.chiprow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.fchip {
+  display: inline-flex; align-items: center; gap: 7px; font: inherit; cursor: pointer;
+  padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  background: var(--chip); border: 1px solid var(--accent-line); color: var(--accent-strong);
+}
+.fchip:hover { background: var(--accent-soft); }
+.fchip span[aria-hidden] { font-size: 15px; line-height: 1; opacity: 0.7; }
+.fchip.clear { background: transparent; border-color: var(--line-2); color: var(--ink-3); }
+.needschip {
+  font: inherit; cursor: pointer; padding: 7px 12px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 650; white-space: nowrap;
+  background: var(--chip); border: 1px solid var(--accent-line); color: var(--accent-strong);
+}
+.needschip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.exptable { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.exphead, .exprow2-main {
+  display: grid; grid-template-columns: 92px 1fr 190px 132px 128px 96px; gap: 14px; align-items: start;
+}
+.exphead {
+  padding: 11px 18px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3);
+}
+.exprow2 { border-bottom: 1px solid var(--line); }
+.exprow2:last-child { border-bottom: 0; }
+.exprow2-main { padding: 13px 18px; font-size: 14px; color: var(--ink); text-decoration: none; }
+.exprow2-main:hover { background: var(--hover); text-decoration: none; }
+.exprow2 .r { text-align: right; }
+.exprow2 span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.exprow2 .r span, .exprow2 .r s { display: block; }
+.c-date { font-family: var(--font-display), inherit; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+/* The longest supplier in the system is 62 characters; it ellipsises here and
+   wraps in full on the record itself, where the legal entity is the evidence. */
+/* Specificity has to beat `.exprow2 span`, which sets a column. */
+.exprow2 .supline { display: flex; flex-direction: row; align-items: center; gap: 7px; min-width: 0; }
+.exprow2 .supline b { font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exprow2 .supline .pill { flex: none; }
+.c-supplier .sub, .c-cat .pill {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
+}
+.exprow2 .sub { font-size: 12px; color: var(--ink-3); font-weight: 400; }
+.exprow2 .sub.split { color: var(--accent-strong); font-weight: 600; }
+.exprow2 .sub.danger { color: var(--danger-ink); font-weight: 650; }
+.exprow2 .ok { color: var(--ok-ink); font-weight: 600; }
+.c-amt > span:first-child, .c-ded > span:first-child { font-weight: 600; }
+.exprow2 .c-amt, .exprow2 .c-ded, .exprow2 .c-gst { font-variant-numeric: tabular-nums; }
+.gst-forfeit { color: var(--danger-ink); font-weight: 700; text-decoration-thickness: 1.5px; }
+.pill.chip { background: var(--chip); color: var(--ink-2); font-weight: 600; }
+.pill.capital { background: var(--accent-soft); color: var(--accent-strong); font-size: 10.5px; }
+
+/* The only row that gets a full tinted ground — it is the only one costing money. */
+.exprow2.blocked { background: var(--danger-soft); }
+.exprow2.blocked .exprow2-main:hover { background: transparent; }
+.blockedstrip {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  padding: 0 18px 13px; font-size: 12.5px; color: var(--danger-ink);
+}
+.blockedstrip .btn { min-height: 34px; }
+
+.listfoot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 12px 18px; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); font-variant-numeric: tabular-nums;
+}
+.listfoot .foots { display: flex; gap: 22px; flex-wrap: wrap; font-size: 13.5px; font-weight: 650; }
+.listfoot .foots i { font-style: normal; font-weight: 500; color: var(--ink-3); margin-right: 6px; }
+.listfoot .ok { color: var(--ok-ink); }
+
+/* Below 620px the table stops being a table. */
+@media (max-width: 860px) {
+  .exphead { display: none; }
+  .exprow2-main {
+    grid-template-columns: 1fr auto; gap: 4px 12px; padding: 14px 16px;
+    grid-template-areas: "sup amt" "date ded" "cat gst";
+  }
+  .c-supplier { grid-area: sup; } .c-amt { grid-area: amt; }
+  .c-date { grid-area: date; } .c-ded { grid-area: ded; }
+  .c-cat { grid-area: cat; } .c-gst { grid-area: gst; }
+  .blockedstrip { padding: 0 16px 14px; flex-direction: column; align-items: stretch; }
+  .blockedstrip .btn { min-height: var(--tap-min); justify-content: center; }
+  .listfoot { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .listfoot .foots { gap: 16px; }
+}

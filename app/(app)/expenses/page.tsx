@@ -6,13 +6,23 @@ import { SkeletonRows, Loading } from "@/components/Skeleton";
 import { useSearchParams } from "next/navigation";
 import { apiGet } from "@/lib/client";
 import { formatAUD } from "@/lib/money";
-import ExpenseList from "@/components/ExpenseList";
+import ExpenseTable, { decorate, type Row } from "@/components/ExpenseTable";
+import { Camera } from "lucide-react";
 import type { ExpenseDto, MetaDto } from "@/lib/types";
 
 type ListResponse = {
   expenses: ExpenseDto[];
   hasMore: boolean;
-  totals: { count: number; audTotal: number; deductibleTotal: number };
+  totals: {
+    count: number; audTotal: number; deductibleTotal: number;
+    gstClaimedTotal: number; gstBlockedTotal: number; blockedCount: number;
+  };
+};
+
+const FLAG_LABEL: Record<string, string> = {
+  capital: "Capital assets",
+  missingReceipt: "Needs attention",
+  pendingFx: "FX pending",
 };
 
 function ExpensesInner() {
@@ -71,32 +81,49 @@ function ExpensesInner() {
 
   const activeFilters = [fy, quarter, categoryId, status, flags, q].filter(Boolean).length;
 
+  const flagCents = meta?.settings?.gst_receipt_flag_cents ?? 8250;
+  // The blocked record sorts first on a phone: it is the only line costing
+  // money, and date order is no help if you never scroll to it.
+  const decorated: Row[] = decorate(rows, flagCents);
+  const ordered = [...decorated].sort((a, b) => Number(b.blocked) - Number(a.blocked));
+  const categoryName = (id: string) =>
+    meta?.categories.find((c) => c.id === id)?.name ?? "Uncategorised";
+
+  const applied: { key: string; label: string; clear: () => void }[] = [];
+  if (fy) applied.push({ key: "fy", label: `FY ${fy}`, clear: () => { setFy(""); setQuarter(""); } });
+  if (quarter) applied.push({ key: "q", label: quarter, clear: () => setQuarter("") });
+  if (categoryId) applied.push({ key: "cat", label: categoryName(categoryId), clear: () => setCategoryId("") });
+  if (status) applied.push({ key: "st", label: status, clear: () => setStatus("") });
+  if (flags) applied.push({ key: "fl", label: FLAG_LABEL[flags] ?? flags, clear: () => setFlags("") });
+  if (q.trim()) applied.push({ key: "q2", label: `"${q.trim()}"`, clear: () => setQ("") });
+
+  function clearAll() { setFy(""); setQuarter(""); setCategoryId(""); setStatus(""); setFlags(""); setQ(""); }
+
   return (
-    <div>
+    <div className="expenses">
       <div className="section-head">
-        <h1>Expenses</h1>
-        <Link href="/expenses/new" className="btn small">+ Add expense</Link>
+        <div>
+          <h1>Expenses</h1>
+          {data && (
+            <p className="greet-sub muted small">
+              {data.totals.count} record{data.totals.count === 1 ? "" : "s"} ·{" "}
+              {formatAUD(data.totals.audTotal)}{fy ? ` · FY ${fy}` : ""}
+            </p>
+          )}
+        </div>
+        <Link href="/expenses/new" className="btn"><Camera size={16} /> Snap a receipt</Link>
       </div>
 
       <div className="filters">
+        <input className="grow" type="search" placeholder="Search supplier, description, notes"
+          value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={fy} onChange={(e) => { setFy(e.target.value); if (!e.target.value) setQuarter(""); }}>
-          <option value="">All FYs</option>
-          {(meta?.financialYears ?? []).map((f) => (
-            <option key={f} value={f}>FY {f}</option>
-          ))}
-        </select>
-        <select value={quarter} onChange={(e) => setQuarter(e.target.value)} disabled={!fy}>
-          <option value="">All quarters</option>
-          <option value="Q1">Q1 Jul–Sep</option>
-          <option value="Q2">Q2 Oct–Dec</option>
-          <option value="Q3">Q3 Jan–Mar</option>
-          <option value="Q4">Q4 Apr–Jun</option>
+          <option value="">All years</option>
+          {(meta?.financialYears ?? []).map((f) => <option key={f} value={f}>FY {f}</option>)}
         </select>
         <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
           <option value="">All categories</option>
-          {(meta?.categories ?? []).map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
+          {(meta?.categories ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">Active + drafts</option>
@@ -104,50 +131,77 @@ function ExpensesInner() {
           <option value="draft">Drafts</option>
           <option value="void">Voided</option>
         </select>
-        <select value={flags} onChange={(e) => setFlags(e.target.value)}>
-          <option value="">All records</option>
-          <option value="capital">Capital assets</option>
-          <option value="missingReceipt">Missing receipt</option>
-          <option value="pendingFx">FX pending</option>
-        </select>
-        <input
-          className="grow"
-          type="search"
-          placeholder="Search supplier, description, notes"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        {activeFilters > 0 && (
-          <button
-            className="btn ghost small"
-            onClick={() => { setFy(""); setQuarter(""); setCategoryId(""); setStatus(""); setFlags(""); setQ(""); }}
-          >
-            Clear {activeFilters}
+        {/* A filter, not a banner — it stays useful at 550 records. */}
+        {data && data.totals.blockedCount > 0 && (
+          <button type="button"
+            className={`needschip${flags === "missingReceipt" ? " on" : ""}`}
+            onClick={() => setFlags(flags === "missingReceipt" ? "" : "missingReceipt")}>
+            Needs attention · {data.totals.blockedCount}
           </button>
         )}
       </div>
 
-      {error && <div className="alert danger">{error}</div>}
-
-      {data && (
-        <div className="listsum">
-          <span><b>{data.totals.count}</b> record{data.totals.count === 1 ? "" : "s"}</span>
-          <span>total <b>{formatAUD(data.totals.audTotal)}</b></span>
-          <span>deductible <b className="accent">{formatAUD(data.totals.deductibleTotal)}</b></span>
+      {applied.length > 0 && (
+        <div className="chiprow">
+          {applied.map((c) => (
+            <button key={c.key} type="button" className="fchip" onClick={c.clear}>
+              {c.label}<span aria-hidden>×</span>
+              <span className="sr-only">Remove filter</span>
+            </button>
+          ))}
+          {applied.length > 1 && (
+            <button type="button" className="fchip clear" onClick={clearAll}>Clear all</button>
+          )}
         </div>
       )}
 
-      <div className="card">
-        {!data && <Loading label="Loading expenses"><SkeletonRows rows={6} /></Loading>}
-        {data && <ExpenseList expenses={rows} categories={meta?.categories} />}
-        {data?.hasMore && (
-          <div className="btnrow mt2" style={{ justifyContent: "center" }}>
-            <button className="btn ghost" onClick={() => load(rows.length)} disabled={busy}>
-              {busy ? "Loading…" : "Load more"}
-            </button>
+      {error && <div className="alert danger">{error}</div>}
+
+      {!data ? (
+        <div className="card"><Loading label="Loading expenses"><SkeletonRows rows={6} /></Loading></div>
+      ) : ordered.length === 0 ? (
+        <div className="card empty">
+          <b>Nothing matches these filters</b>
+          {applied.length > 0 ? (
+            <>
+              Nothing {applied.map((c) => c.label).join(" · ")}.{" "}
+              {data.totals.count === 0 && "There are no records in this view at all."}
+              <div className="btnrow" style={{ justifyContent: "center", marginTop: 14 }}>
+                <button className="btn" onClick={clearAll}>Clear all filters</button>
+                {applied.length > 1 && (
+                  <button className="btn ghost" onClick={() => applied[applied.length - 1].clear()}>
+                    Just drop {applied[applied.length - 1].label}
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <>No expenses recorded yet.</>
+          )}
+        </div>
+      ) : (
+        <>
+          <ExpenseTable rows={ordered} categoryName={categoryName} />
+          <div className="listfoot">
+            <span className="muted small">
+              Showing {ordered.length} of {data.totals.count}
+            </span>
+            <span className="foots">
+              <span><i>Total</i> {formatAUD(data.totals.audTotal)}</span>
+              <span><i>Deductible</i> {formatAUD(data.totals.deductibleTotal)}</span>
+              <span><i>GST claimed</i> <b className="ok">{formatAUD(data.totals.gstClaimedTotal)}</b></span>
+            </span>
           </div>
-        )}
-      </div>
+        </>
+      )}
+
+      {data?.hasMore && (
+        <div className="btnrow" style={{ justifyContent: "center" }}>
+          <button className="btn ghost" onClick={() => load(rows.length)} disabled={busy}>
+            {busy ? "Loading…" : "Load more"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

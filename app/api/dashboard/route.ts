@@ -1,6 +1,6 @@
 import { api, json } from "@/lib/api";
 import { db, schema } from "@/lib/db";
-import { listExpenses, receiptCountMap } from "@/lib/expenses";
+import { receiptCountMap } from "@/lib/expenses";
 import { ensureRenewalDrafts, subscriptionOverview } from "@/lib/subscriptions";
 import { missingReceipts, gstSummary } from "@/lib/reports";
 import { currentFy } from "@/lib/fy";
@@ -19,7 +19,7 @@ export const GET = api(async (req) => {
   const fy = url.searchParams.get("fy") || currentFy();
   const d = await db();
 
-  const [fyRows, drafts, pendingFx, recent, missing, subs, gst, incomeRows, unpaid] = await Promise.all([
+  const [fyRows, drafts, pendingFx, missing, subs, gst, incomeRows, unpaid] = await Promise.all([
     d
       .select()
       .from(schema.expenses)
@@ -32,7 +32,6 @@ export const GET = api(async (req) => {
       .select({ n: sql<number>`count(*)` })
       .from(schema.expenses)
       .where(and(eq(schema.expenses.fxStatus, "pending"), sql`${schema.expenses.status} != 'void'`)),
-    listExpenses({ limit: 8 }),
     missingReceipts(fy),
     subscriptionOverview(),
     gstSummary(fy),
@@ -108,6 +107,5 @@ export const GET = api(async (req) => {
       gstInvoiceFlags: gst.totals.flaggedCount,
       unpaidInvoices: unpaid[0]?.n ?? 0,
     },
-    recent: recent.expenses,
   });
 });
