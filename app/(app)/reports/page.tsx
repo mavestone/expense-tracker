@@ -341,7 +341,7 @@ function ReportsInner() {
                           <td className="r">{formatAUD(q.g11Cents)}</td>
                           <td className="r">
                             {formatAUD(q.oneBCents)}
-                            {q.excludedGstCents > 0 && <div className="small" style={{ color: "var(--danger)" }}>+{formatAUD(q.excludedGstCents)} excluded (no tax invoice)</div>}
+                            {q.excludedGstCents > 0 && <div className="small" style={{ color: "var(--danger-ink)" }}>+{formatAUD(q.excludedGstCents)} excluded (no tax invoice)</div>}
                           </td>
                           <td className="r" style={{ color: q.netGstCents > 0 ? "var(--danger)" : "var(--ok)" }}>
                             {formatAUD(q.netGstCents)}
@@ -413,7 +413,7 @@ function ReportsInner() {
 
               {gst.totals.flaggedCount > 0 && (
                 <div className="card flagged">
-                  <h2 style={{ color: "var(--danger)" }}>⚠ GST credits blocked — no tax invoice</h2>
+                  <h2 style={{ color: "var(--danger-ink)" }}>⚠ GST credits blocked — no tax invoice</h2>
                   <p className="small muted mt0">These GST-claimable purchases are over {formatAUD(gst.thresholdCents)} with no receipt attached. Attach a valid tax invoice to include the credit in 1B.</p>
                   <div className="tablewrap">
                     <table className="data">
