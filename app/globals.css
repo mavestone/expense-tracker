@@ -1,73 +1,85 @@
-/* ── Design system v2: refined utilitarian financial tool, light + dark ── */
+/* ── Design system v3 — from the Claude Design canvas, pass 01 ─────────────
+   Translucent surfaces over a tinted ground, indigo primary with a lime
+   secondary, larger radii, and a display face for headings and figures.
+   Body text stays on the system stack; only headings and headline numbers
+   use --font-display. */
 :root {
-  --bg: #f4f6f7;
-  --surface: #ffffff;
-  --surface-2: #fafbfb;
-  --hover: #f1f6f4;
-  --ink: #14181b;
-  --ink-2: #49525a;
-  --ink-3: #78828b;
-  --line: #e7eaec;
-  --line-2: #ccd3d7;
-  --accent: #0d7a65;
-  --accent-strong: #095c4c;
-  --accent-soft: #e2f2ee;
-  --accent-line: #b9ded4;
-  --accent-ring: rgba(13, 122, 101, 0.26);
-  --accent-grad: linear-gradient(155deg, #129076, #0a6152);
-  --danger: #b3261e;
-  --danger-soft: #fbe9e7;
-  --warn: #935409;
-  --warn-soft: #fcf1dd;
-  --ok: #1c6e3c;
-  --ok-soft: #e5f3e9;
-  --info: #2b5d9b;
-  --info-soft: #e9effa;
-  --chip: #edf0f1;
-  --toast-bg: #1c2226;
-  --plus-grad: linear-gradient(160deg, #14846e, #084c40);
-  --radius: 14px;
-  --radius-sm: 10px;
-  --radius-lg: 18px;
-  --shadow-sm: 0 1px 2px rgba(16, 20, 24, 0.05);
-  --shadow: 0 1px 2px rgba(16, 20, 24, 0.04), 0 2px 8px rgba(16, 20, 24, 0.045), 0 12px 28px -12px rgba(16, 20, 24, 0.09);
-  --shadow-raised: 0 2px 6px rgba(16, 20, 24, 0.07), 0 14px 40px -12px rgba(16, 20, 24, 0.16);
-  --topbar-bg: rgba(255, 255, 255, 0.82);
+  --bg: #eef1fb;
+  --surface: rgba(255, 255, 255, 0.66);
+  --surface-2: rgba(236, 240, 255, 0.72);
+  --hover: rgba(41, 66, 230, 0.07);
+  --ink: #0a0f1f;
+  --ink-2: #4b5578;
+  --ink-3: #5f6884;
+  --line: rgba(10, 15, 31, 0.10);
+  --line-2: rgba(10, 15, 31, 0.18);
+  --accent: #2942e6;
+  --accent-strong: #1a2cb4;
+  --accent-2: #b6e42a;
+  --accent-2-ink: #26310a;
+  --accent-soft: rgba(41, 66, 230, 0.10);
+  --accent-line: rgba(41, 66, 230, 0.22);
+  --accent-ring: rgba(41, 66, 230, 0.28);
+  --accent-grad: linear-gradient(155deg, #3a58f2, #1a2cb4);
+  --danger: #c62c3a;
+  --danger-soft: rgba(198, 44, 58, 0.10);
+  --warn: #8a5a00;
+  --warn-soft: rgba(200, 140, 0, 0.14);
+  --ok: #137a4e;
+  --ok-soft: rgba(19, 122, 78, 0.12);
+  --info: #2942e6;
+  --info-soft: rgba(41, 66, 230, 0.10);
+  --chip: rgba(41, 66, 230, 0.08);
+  --toast-bg: #131a33;
+  --plus-grad: linear-gradient(160deg, #3a58f2, #1a2cb4);
+  --radius-sm: 14px;
+  --radius: 22px;
+  --radius-lg: 26px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 60, 0.06);
+  --shadow: 0 6px 22px rgba(16, 24, 60, 0.09);
+  --shadow-raised: 0 24px 60px rgba(16, 24, 60, 0.16);
+  --glow: 0 0 0 1px rgba(41, 66, 230, 0.22), 0 10px 28px rgba(41, 66, 230, 0.26);
+  --topbar-bg: rgba(238, 241, 251, 0.72);
   --nav-h: 62px;
+  --tap-min: 44px;
+  --glass: blur(18px) saturate(1.4);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0c1013;
-    --surface: #161c20;
-    --surface-2: #1b2226;
-    --hover: #1e262a;
-    --ink: #e6e9ea;
-    --ink-2: #a7b0b6;
-    --ink-3: #707b83;
-    --line: #232b2f;
-    --line-2: #3a4449;
-    --accent: #45b79e;
-    --accent-strong: #6ed3ba;
-    --accent-soft: rgba(69, 183, 158, 0.15);
-    --accent-line: rgba(69, 183, 158, 0.34);
-    --accent-ring: rgba(69, 183, 158, 0.34);
-    --accent-grad: linear-gradient(155deg, #3aa88f, #1d6d5c);
-    --danger: #e5786f;
-    --danger-soft: rgba(229, 120, 111, 0.14);
-    --warn: #d99a4e;
-    --warn-soft: rgba(217, 154, 78, 0.13);
-    --ok: #6bbd87;
-    --ok-soft: rgba(107, 189, 135, 0.13);
-    --info: #7fabde;
-    --info-soft: rgba(127, 171, 222, 0.13);
+    --bg: #070a14;
+    --surface: rgba(20, 27, 48, 0.66);
+    --surface-2: rgba(30, 39, 66, 0.60);
+    --hover: rgba(99, 126, 255, 0.12);
+    --ink: #eef1ff;
+    --ink-2: #a6b0d6;
+    --ink-3: #7d87ad;
+    --line: rgba(255, 255, 255, 0.09);
+    --line-2: rgba(255, 255, 255, 0.17);
+    --accent: #4a66ff;
+    --accent-strong: #96a8ff;
+    --accent-2: #ccf85a;
+    --accent-2-ink: #101806;
+    --accent-soft: rgba(74, 102, 255, 0.16);
+    --accent-line: rgba(140, 160, 255, 0.30);
+    --accent-ring: rgba(140, 160, 255, 0.36);
+    --accent-grad: linear-gradient(155deg, #4a66ff, #2436b8);
+    --danger: #ff8189;
+    --danger-soft: rgba(255, 129, 137, 0.14);
+    --warn: #ffc861;
+    --warn-soft: rgba(255, 200, 97, 0.14);
+    --ok: #5ce8a4;
+    --ok-soft: rgba(92, 232, 164, 0.13);
+    --info: #7fa8ff;
+    --info-soft: rgba(127, 168, 255, 0.14);
     --chip: rgba(255, 255, 255, 0.07);
-    --toast-bg: #2b3438;
-    --plus-grad: linear-gradient(160deg, #2e9a83, #17594c);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.36), 0 3px 12px rgba(0, 0, 0, 0.28), 0 16px 32px -16px rgba(0, 0, 0, 0.5);
-    --shadow-raised: 0 2px 8px rgba(0, 0, 0, 0.45), 0 18px 46px -14px rgba(0, 0, 0, 0.6);
-    --topbar-bg: rgba(17, 21, 23, 0.8);
+    --toast-bg: #1b2444;
+    --plus-grad: linear-gradient(160deg, #4a66ff, #2436b8);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+    --shadow-raised: 0 28px 70px rgba(0, 0, 0, 0.62);
+    --glow: 0 0 0 1px rgba(140, 160, 255, 0.30), 0 12px 34px rgba(58, 88, 242, 0.45);
+    --topbar-bg: rgba(7, 10, 20, 0.72);
   }
 }
 
@@ -86,7 +98,7 @@ h1, h2, h3 { margin: 0 0 0.4em; line-height: 1.2; }
 h1 { font-size: 23px; font-weight: 750; letter-spacing: -0.015em; }
 h2 { font-size: 16.5px; font-weight: 680; letter-spacing: -0.005em; }
 h3 { font-size: 12.5px; font-weight: 650; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.06em; }
-a { color: var(--accent); text-decoration: none; }
+a { color: var(--accent-strong); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; }
 ::selection { background: var(--accent-soft); }
@@ -991,3 +1003,75 @@ a:hover > .card, a:hover > .stat { transform: translateY(-1px); box-shadow: var(
 }
 .listsum b { color: var(--ink); font-weight: 680; font-size: 14.5px; }
 .listsum b.accent { color: var(--accent-strong); }
+
+/* ═══ Glass surfaces ══════════════════════════════════════════════════════
+   The canvas puts a translucent blurred surface on everything — 78 blurred
+   layers in the mockup. A blur is a GPU composite per layer, and this app
+   scrolls lists of fifty-plus rows on a phone, so blur is applied to the
+   CHROME and to CARDS (a handful on screen at once) and deliberately NOT to
+   list rows or table rows. The look survives; the jank does not. */
+.topbar, .subnav, .bottomnav {
+  background: var(--topbar-bg);
+  -webkit-backdrop-filter: var(--glass);
+  backdrop-filter: var(--glass);
+}
+.card, .stat, .dlg, .toast, .filters {
+  -webkit-backdrop-filter: var(--glass);
+  backdrop-filter: var(--glass);
+}
+/* Rows sit inside an already-blurred card — blurring them again buys nothing
+   and costs a layer each. */
+.exprow, .lines-table tr, .sk-row { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* A soft tinted ground so the translucency has something to reveal. */
+body {
+  background:
+    radial-gradient(1100px 620px at 12% -8%, var(--accent-soft), transparent 60%),
+    radial-gradient(900px 520px at 92% 2%, var(--accent-soft), transparent 62%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* ── Display face ────────────────────────────────────────────────────────── */
+h1, h2, h3,
+.stat .value, .trend-amount, .listsum b, .dlg-title, .doc h1 {
+  font-family: var(--font-display), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: -0.02em;
+}
+.stat .value, .trend-amount, .listsum b { font-variant-numeric: tabular-nums; }
+
+/* ── Lime secondary ──────────────────────────────────────────────────────
+   Used once per screen at most, on the single affirmative action. It is the
+   loudest colour in the system, so it marks the thing you came to do. */
+.btn.go {
+  background: var(--accent-2);
+  color: var(--accent-2-ink);
+  border-color: color-mix(in srgb, var(--accent-2) 70%, #000);
+  box-shadow: var(--shadow-sm);
+}
+.btn.go:hover { background: var(--accent-2); filter: brightness(1.06); }
+
+/* Primary buttons carry the glow rather than a flat shadow. */
+.btn:not(.ghost):not(.danger):not(.go) { box-shadow: var(--glow); }
+.btn:not(.ghost):not(.danger):not(.go):hover { box-shadow: var(--glow), 0 0 0 4px var(--accent-soft); }
+
+/* Cards need a hairline highlight or they dissolve into the ground. */
+.card, .stat { border-color: var(--line); }
+
+@media (prefers-reduced-transparency: reduce) {
+  /* Some people find translucency unreadable; give them solid surfaces. */
+  .topbar, .subnav, .bottomnav, .card, .stat, .dlg, .toast, .filters {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: color-mix(in srgb, var(--surface) 100%, var(--bg) 100%);
+  }
+}
+
+/* The wordmark and the section switch collide below 560px — the switch grew
+   with the larger radii. Drop the words, keep the mark; the switch is the
+   thing you actually reach for. */
+@media (max-width: 560px) {
+  .topbar .brand-name { display: none; }
+  .topbar .brand { flex: none; }
+  .topbar .actions { flex: 1; }
+}
