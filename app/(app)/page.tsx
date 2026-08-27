@@ -6,14 +6,13 @@ import { formatAUD } from "@/lib/money";
 import TrendChart, { type TrendMonth } from "@/components/TrendChart";
 import ActionStack, { type ActionData } from "@/components/ActionStack";
 import { SkeletonStats, SkeletonBlock, Loading } from "@/components/Skeleton";
-import type { ExpenseDto, MetaDto } from "@/lib/types";
+import type { MetaDto } from "@/lib/types";
 
 type Dashboard = {
   fy: string;
   actions: ActionData;
   totals: { count: number; audCents: number; deductibleCents: number; claimableGstCents: number; blockedGstCents: number };
   income: { count: number; audCents: number; gstCents: number; netCents: number; outstandingCents: number };
-  recent: ExpenseDto[];
 };
 type Trend = { fy: string; months: TrendMonth[]; totals: { incomeCents: number; expenseCents: number } };
 type Closure = {
