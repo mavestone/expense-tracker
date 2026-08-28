@@ -107,3 +107,21 @@ export function formatDateAU(dateISO: string): string {
   const [y, m, d] = dateISO.split("-");
   return `${d}/${m}/${y}`;
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * Display helper: "2025-09-14" -> "14 Sep 25".
+ *
+ * Used in the dense lists, where a column of slashed dates reads as one grey
+ * block and 09/08 is ambiguous to anyone who has ever seen a US invoice. The
+ * named month is unmistakable and sorts visually by the year on the right.
+ * Forms and record detail keep `formatDateAU` — there the exact stored value
+ * is the point.
+ */
+export function formatDateShort(dateISO: string): string {
+  const [y, m, d] = dateISO.split("-");
+  const month = MONTHS[Number(m) - 1];
+  if (!month) return formatDateAU(dateISO);
+  return `${d} ${month} ${y.slice(2)}`;
+}

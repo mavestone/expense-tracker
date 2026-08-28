@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, ListChecks, Receipt, Check, Camera, FileText } from "lucide-react";
 import { formatAUD, formatCurrency } from "@/lib/money";
-import { formatDateAU } from "@/lib/fy";
+import { formatDateShort } from "@/lib/fy";
 
 export type ActionData = {
   fy: string;
@@ -64,7 +64,7 @@ export default function ActionStack({ data, nextBas }: { data: ActionData; nextB
           <div className="act-context">
             <div><b>{data.unpaid.first.number}</b> · {data.unpaid.first.client}</div>
             <div>
-              Issued {formatDateAU(data.unpaid.first.issueDate)} · due {formatDateAU(data.unpaid.first.dueDate)}
+              Issued {formatDateShort(data.unpaid.first.issueDate)} · due {formatDateShort(data.unpaid.first.dueDate)}
               {data.unpaid.first.gstTreatment === "gst_free" ? " · GST-free export" : ""}
             </div>
             {data.unpaid.count > 1 && (
@@ -105,7 +105,7 @@ export default function ActionStack({ data, nextBas }: { data: ActionData; nextB
           <div className="act-context">
             <div>
               <b>{data.blockedGst.first.supplier}</b> · {formatAUD(data.blockedGst.first.audCents)} ·{" "}
-              {formatDateAU(data.blockedGst.first.date)}
+              {formatDateShort(data.blockedGst.first.date)}
             </div>
             <div>Over {formatAUD(data.blockedGst.thresholdCents)} with no tax invoice</div>
             {data.blockedGst.count > 1 && <div>{data.blockedGst.count} records affected</div>}

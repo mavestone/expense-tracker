@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Camera } from "lucide-react";
 import { formatAUD, formatCurrency, applyBp, bpToPercentString } from "@/lib/money";
-import { formatDateAU } from "@/lib/fy";
+import { formatDateShort } from "@/lib/fy";
 import type { ExpenseDto } from "@/lib/types";
 
 export type Row = ExpenseDto & { blocked: boolean; claimableGstCents: number };
@@ -69,7 +69,7 @@ export default function ExpenseTable({
       {rows.map((r) => (
         <div key={r.id} className={`exprow2${r.blocked ? " blocked" : ""}`}>
           <Link href={`/expenses/${r.id}`} className="exprow2-main">
-            <span className="c-date">{formatDateAU(r.dateIncurred)}</span>
+            <span className="c-date">{formatDateShort(r.dateIncurred)}</span>
             <span className="c-supplier">
               {/* The name ellipsises; the pill must not be inside the clipped
                   box or it wraps and stretches to the column width. */}

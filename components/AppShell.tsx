@@ -79,7 +79,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <path d="M20 14h24a2 2 0 0 1 2 2v32l-4-3-4 3-4-3-4 3-4-3-4 3V16a2 2 0 0 1 2-2z" fill="none" stroke="#fff" strokeWidth="3" strokeLinejoin="round" />
             <path d="M26 24h12M26 31h12M26 38h7" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
           </svg>
-          <span className="brand-name">Mavestone Expense Clerk</span>
+          {/* The artboards set the wordmark to the trading name alone — the
+              full product name crowded the 56px bar and repeated the tab title. */}
+          <span className="brand-name">Mavestone</span>
         </Link>
 
         <div className="sectionswitch" role="group" aria-label="Section">

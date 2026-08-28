@@ -1222,3 +1222,140 @@ h1, h2, h3,
   .listfoot { flex-direction: column; align-items: flex-start; gap: 8px; }
   .listfoot .foots { gap: 16px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Pass 02 artboard conformance
+   ─────────────────────────────────────────────────────────────────────
+   Measured against `Mavestone Expense Clerk pass02.dc.html` rather than
+   transcribed from its prose. The artboards set every heading, figure,
+   nav label and date in the display face with tight negative tracking;
+   the earlier passes loaded that face and then never applied it, which
+   is most of the reason the build read as a different design.
+   ══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --display: var(--font-display), "Space Grotesk", -apple-system, BlinkMacSystemFont,
+             "Segoe UI", sans-serif;
+}
+
+/* Type. Body copy stays on the system stack — only structure is set in
+   the display face, exactly as the artboards do it. */
+h1, h2, h3,
+.greet, .brand-name,
+.act-figure, .act-of, .fy-figure, .fystrip .v,
+.sectionswitch a, .fyswitch button, .subnav a,
+.c-date, .c-amt, .c-ded, .c-gst, .exphead,
+.listfoot .foots, .stat .v, .trend text {
+  font-family: var(--display);
+}
+
+.greet { font-size: 21px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.15; }
+.greet-sub { margin-top: 3px; font-size: 13px; color: var(--ink-3); }
+
+/* ── Top bar ──────────────────────────────────────────────────────────
+   56px, one gap value, brand at 15px. */
+.topbar { height: 56px; gap: 22px; padding: 0 24px; }
+.topbar .brand { flex: none; font-size: 15px; font-weight: 700; }
+.topbar .brand svg { width: 21px; height: 21px; }
+.topbar .actions { flex: 1; }
+
+/* The section switch is a filled pill group: the active half carries the
+   accent and the glow, not a pale tint. */
+.sectionswitch {
+  gap: 4px; padding: 3px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.sectionswitch a {
+  padding: 5px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  color: var(--ink-2); letter-spacing: 0;
+}
+.sectionswitch a.active {
+  background: var(--accent); color: #fff; box-shadow: var(--glow);
+}
+
+/* ── Sub nav ──────────────────────────────────────────────────────────
+   42px tall, generously spaced, and the active tab is marked in lime —
+   the one place the secondary accent appears in the chrome. Using an
+   inset shadow rather than a border keeps the row from shifting 2px. */
+.subnav-inner { padding: 0 24px; gap: 26px; height: 42px; align-items: center; }
+.subnav a {
+  padding: 0; font-size: 13px; font-weight: 500; color: var(--ink-2);
+  border-bottom: 0; margin-bottom: 0; align-self: stretch; display: flex; align-items: center;
+}
+.subnav a:hover { color: var(--ink); }
+.subnav a.active {
+  color: var(--ink); font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent-2);
+}
+
+/* ── FY switch ────────────────────────────────────────────────────────
+   A quiet segmented control, not a row of buttons. The selected year is
+   a raised surface; filling it with accent competed with the action
+   cards for the loudest thing on the screen. */
+.fyswitch {
+  display: inline-flex; flex-wrap: nowrap; gap: 4px; padding: 3px; margin: -2px 0 14px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px;
+}
+.fyswitch button {
+  min-height: 0; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid transparent; background: none;
+  font-size: 12px; font-weight: 600; color: var(--ink-2);
+}
+.fyswitch button:hover { background: var(--hover); }
+.fyswitch button.active {
+  background: var(--surface); border-color: var(--line-2); color: var(--ink); box-shadow: none;
+}
+
+/* ── Status badge ─────────────────────────────────────────────────────
+   Sentence case at 12px. The uppercase micro-type read as a system label
+   rather than the settled statement of fact it is. */
+.taxbadge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px; font-size: 12px; font-weight: 600;
+  letter-spacing: 0; text-transform: none;
+}
+
+/* ── Action cards ─────────────────────────────────────────────────────
+   The coloured edge is the whole signal, so each card names its own ink
+   in the label too — including the accent card, which was left grey. */
+.act { padding: 18px 20px 16px; }
+.act-figure { letter-spacing: -0.02em; line-height: 1; gap: 8px; }
+.act-of { font-family: var(--display); font-weight: 500; }
+.act.accent .act-label { color: var(--accent-strong); }
+.act-context { line-height: 1.45; }
+.act .btnrow { gap: 8px; }
+
+@media (min-width: 861px) {
+  /* On a pointer device the buttons sit at 36px; the 44px target is a
+     touch requirement, not a look. */
+  .act .btn { min-height: 36px; font-size: 13px; }
+  .act .btn.ghost { padding: 0 13px; }
+}
+
+.pbar { border: 1px solid var(--line); background: var(--surface-2); }
+
+/* ── Expense rows ─────────────────────────────────────────────────────
+   The blocked row leads with the reason, not with a right-aligned
+   button — the sentence is what the owner acts on. */
+.blockedstrip { justify-content: flex-start; gap: 10px; font-weight: 600; }
+.blockedstrip .btn.small { min-height: 30px; border-radius: 12px; padding: 6px 12px; font-size: 12px; }
+.exprow2 .sub.split { color: var(--accent-strong); }
+.pill.chip { border: 1px solid var(--line); padding: 4px 9px; font-size: 12px; }
+.pill.capital { letter-spacing: 0.02em; font-weight: 700; padding: 2px 7px; }
+
+@media (max-width: 860px) {
+  .topbar { height: 54px; padding: 0 16px; gap: 12px; }
+  .greet { font-size: 19px; }
+  /* Phone cards take the accent on the leading edge, where the thumb
+     scans, rather than on a top edge that stacks into a striped list. */
+  .act { padding: 15px 16px; border-top-width: 1px; }
+}
+
+/* Three decisions side by side is the designed case. One or two should not
+   stretch across 1060px — a lone card at full width turns a $13.64 credit
+   into the loudest object on the screen. */
+@media (min-width: 861px) {
+  .actionstack { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .actionstack:has(> .act:only-child) { grid-template-columns: minmax(0, 520px); }
+  .actionstack:has(> .act:first-child:nth-last-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
