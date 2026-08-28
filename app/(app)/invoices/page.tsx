@@ -5,8 +5,8 @@ import Link from "next/link";
 import { apiGet } from "@/lib/client";
 import { formatCurrency } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
-import type { MetaDto } from "@/lib/types";
 import { SkeletonRows, Loading } from "@/components/Skeleton";
+import { useFy } from "@/components/FyContext";
 
 type Invoice = {
   id: string;
@@ -34,23 +34,19 @@ const FILTERS: { key: string; label: string; status?: string }[] = [
 
 export default function InvoicesPage() {
   const [data, setData] = useState<Resp | null>(null);
-  const [meta, setMeta] = useState<MetaDto | null>(null);
   const [filter, setFilter] = useState("all");
-  const [fy, setFy] = useState("");
+  const { fy, ready: fyReady } = useFy();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiGet<MetaDto>("/api/meta").then(setMeta).catch(() => setMeta(null));
-  }, []);
-
-  useEffect(() => {
+    if (!fyReady) return;
     setData(null);
     const p = new URLSearchParams();
     const f = FILTERS.find((x) => x.key === filter);
     if (f?.status) p.set("status", f.status);
     if (fy) p.set("fy", fy);
     apiGet<Resp>(`/api/invoices?${p}`).then(setData).catch((e) => setError(e.message));
-  }, [filter, fy]);
+  }, [filter, fy, fyReady]);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -73,16 +69,6 @@ export default function InvoicesPage() {
         ))}
       </div>
 
-      {meta && meta.financialYears.length > 0 && (
-        <div className="fyswitch mt1" role="group" aria-label="Financial year">
-          <button type="button" className={fy === "" ? "active" : ""} onClick={() => setFy("")}>All years</button>
-          {meta.financialYears.map((f) => (
-            <button key={f} type="button" className={f === fy ? "active" : ""} onClick={() => setFy(f)}>
-              FY {f}
-            </button>
-          ))}
-        </div>
-      )}
 
       {data && data.byCurrency.length > 0 && (
         <div className="stats mt2">

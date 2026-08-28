@@ -8,6 +8,7 @@ import { formatAUD, formatCurrency, parseMoneyToCents, centsToDecimalString } fr
 import { formatDateAU, financialYear } from "@/lib/fy";
 import { COMMON_CURRENCIES, type MetaDto } from "@/lib/types";
 import { useDialog } from "@/components/Dialog";
+import { useFy } from "@/components/FyContext";
 import { useToast } from "@/components/Toast";
 
 type IncomeDto = {
@@ -74,7 +75,7 @@ const EMPTY = {
 export default function IncomePage() {
   const [meta, setMeta] = useState<MetaDto | null>(null);
   const [data, setData] = useState<ListResp | null>(null);
-  const [fy, setFy] = useState("");
+  const { fy, ready: fyReady } = useFy();
   const [outstandingOnly, setOutstandingOnly] = useState(false);
   const [q, setQ] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -101,10 +102,13 @@ export default function IncomePage() {
   useEffect(() => {
     apiGet<MetaDto>("/api/meta").then(setMeta).catch((e) => setError(e.message));
   }, []);
+  // Wait for the shared year, so the first request is not fired against an
+  // unresolved "" and then raced by the real one.
   useEffect(() => {
+    if (!fyReady) return;
     const t = setTimeout(load, q ? 300 : 0);
     return () => clearTimeout(t);
-  }, [load, q]);
+  }, [load, q, fyReady]);
 
   function openNew() {
     setForm({ ...EMPTY, dateEarned: meta?.today ?? "", gstTreatment: meta?.settings.gst_registered ? "gst" : "no_gst" });
@@ -257,10 +261,6 @@ export default function IncomePage() {
       )}
 
       <div className="filterbar">
-        <select value={fy} onChange={(e) => setFy(e.target.value)}>
-          <option value="">All FYs</option>
-          {meta.financialYears.map((f) => <option key={f} value={f}>FY {f}</option>)}
-        </select>
         <label className="checkline" style={{ margin: 0, alignItems: "center" }}>
           <input type="checkbox" checked={outstandingOnly} onChange={(e) => setOutstandingOnly(e.target.checked)} />
           <span className="small">Unpaid only</span>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ToastProvider } from "@/components/Toast";
+import { FyProvider, FySelect } from "@/components/FyContext";
 
 /**
  * Two sections, one system. **Tax** is the compliance ledger — everything that
@@ -71,6 +72,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ToastProvider>
+    <FyProvider>
     <div className="shell">
       <header className="topbar">
         <Link href="/" className="brand" style={{ textDecoration: "none" }}>
@@ -93,7 +95,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
+        {/* The year applies to Tax and Invoicing alike, so it sits in the bar
+            above both rather than being restated on six screens. */}
         <span className="actions">
+          <FySelect />
           <button className="btn ghost small" onClick={logout}>
             Lock
           </button>
@@ -158,6 +163,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       )}
     </div>
+    </FyProvider>
     </ToastProvider>
   );
 }

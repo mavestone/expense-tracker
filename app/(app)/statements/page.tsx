@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/client";
 import { formatAUD, formatCurrency } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 import { useDialog } from "@/components/Dialog";
+import { useFy } from "@/components/FyContext";
 import { useToast } from "@/components/Toast";
 
 type Progress = { total: number; unreviewed: number; logged: number; personal: number; ignored: number; donePct: number };
@@ -62,7 +63,8 @@ function Bar({ p }: { p: Progress }) {
 
 export default function StatementsPage() {
   const [ov, setOv] = useState<Overview | null>(null);
-  const [fy, setFy] = useState("");
+  // Triage is per year; "all years" falls back to the current FY.
+  const { resolved: fy } = useFy();
   const [accountId, setAccountId] = useState("");
   const [status, setStatus] = useState<string>("unreviewed");
   const [direction, setDirection] = useState("");
@@ -78,12 +80,8 @@ export default function StatementsPage() {
   const [bulkReason, setBulkReason] = useState(false);
 
   useEffect(() => {
-    apiGet<Overview>(`/api/statements${fy ? `?fy=${fy}` : ""}`)
-      .then((o) => {
-        setOv(o);
-        if (!fy && o.financialYears.length) setFy(o.financialYears[0]);
-      })
-      .catch((e) => setError(e.message));
+    if (!fy) return;
+    apiGet<Overview>(`/api/statements?fy=${fy}`).then(setOv).catch((e) => setError(e.message));
   }, [fy]);
 
   const loadTxns = useCallback(() => {
@@ -193,15 +191,7 @@ export default function StatementsPage() {
     <div>
       <div className="section-head">
         <h1>Bank statements</h1>
-        {ov && ov.financialYears.length > 0 && (
-          <span className="fyswitch" style={{ margin: 0 }}>
-            {ov.financialYears.map((f) => (
-              <button key={f} type="button" className={f === fy ? "active" : ""} onClick={() => setFy(f)}>
-                FY {f}
-              </button>
-            ))}
-          </span>
-        )}
+        <span className="muted small">FY {fy}</span>
       </div>
 
       {!ov ? (

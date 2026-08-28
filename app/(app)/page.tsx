@@ -6,7 +6,7 @@ import { formatAUD } from "@/lib/money";
 import TrendChart, { type TrendMonth } from "@/components/TrendChart";
 import ActionStack, { type ActionData } from "@/components/ActionStack";
 import { SkeletonStats, SkeletonBlock, Loading } from "@/components/Skeleton";
-import type { MetaDto } from "@/lib/types";
+import { useFy } from "@/components/FyContext";
 
 type Dashboard = {
   fy: string;
@@ -35,39 +35,32 @@ export default function HomePage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [trend, setTrend] = useState<Trend | null>(null);
   const [closure, setClosure] = useState<Closure | null>(null);
-  const [meta, setMeta] = useState<MetaDto | null>(null);
   const [ownerName, setOwnerName] = useState("");
   const [hello, setHello] = useState<string | null>(null);
-  const [fy, setFy] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const { resolved: fy, ready } = useFy();
 
   useEffect(() => setHello(greeting(new Date().getHours())), []);
   useEffect(() => {
-    apiGet<MetaDto>("/api/meta").then(setMeta).catch((e) => setError(e.message));
     apiGet<{ settings: { owner_name?: string } }>("/api/settings")
       .then((s) => setOwnerName(s.settings?.owner_name ?? ""))
       .catch(() => setOwnerName(""));
   }, []);
 
   useEffect(() => {
+    if (!ready) return;
     setData(null);
     setTrend(null);
     setClosure(null);
-    const q = fy ? `?fy=${fy}` : "";
+    const q = `?fy=${fy}`;
     apiGet<Dashboard>(`/api/dashboard${q}`).then(setData).catch((e) => setError(e.message));
     apiGet<Trend>(`/api/reports/trend${q}`).then(setTrend).catch(() => setTrend(null));
-  }, [fy]);
-
-  useEffect(() => {
-    const active = fy || data?.fy;
-    if (!active) return;
-    apiGet<Closure>(`/api/fy/${active}`).then(setClosure).catch(() => setClosure(null));
-  }, [fy, data?.fy]);
+    apiGet<Closure>(`/api/fy/${fy}`).then(setClosure).catch(() => setClosure(null));
+  }, [fy, ready]);
 
   if (error) return <div className="alert danger">{error}</div>;
 
   const activeFy = fy || data?.fy || "";
-  const years = meta?.financialYears ?? (data ? [data.fy] : []);
 
   if (!data)
     return (
@@ -106,16 +99,6 @@ export default function HomePage() {
           </span>
         )}
       </div>
-
-      {years.length > 1 && (
-        <div className="fyswitch" role="group" aria-label="Financial year">
-          {years.map((f) => (
-            <button key={f} type="button" className={f === activeFy ? "active" : ""} onClick={() => setFy(f)}>
-              FY {f}
-            </button>
-          ))}
-        </div>
-      )}
 
       <ActionStack data={a} />
 

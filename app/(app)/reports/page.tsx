@@ -7,6 +7,7 @@ import { apiGet } from "@/lib/client";
 import { formatAUD, bpToPercentString } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 import type { MetaDto } from "@/lib/types";
+import { useFy } from "@/components/FyContext";
 import FyClosePanel from "@/components/FyClosePanel";
 import { SkeletonStats, SkeletonBlock, Loading } from "@/components/Skeleton";
 
@@ -89,7 +90,6 @@ type MissingReport = {
 function ReportsInner() {
   const params = useSearchParams();
   const [meta, setMeta] = useState<MetaDto | null>(null);
-  const [fy, setFy] = useState("");
   const [tab, setTab] = useState<Tab>((params.get("tab") as Tab) || "profit");
   const [profit, setProfit] = useState<ProfitReport | null>(null);
   const [cat, setCat] = useState<CategoryReport | null>(null);
@@ -101,12 +101,11 @@ function ReportsInner() {
   const [dep, setDep] = useState<DepreciationReport | null>(null);
   const [missing, setMissing] = useState<MissingReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Reports are always for one year; "all years" falls back to the current FY.
+  const { resolved: fy } = useFy();
 
   useEffect(() => {
-    apiGet<MetaDto>("/api/meta").then((m) => {
-      setMeta(m);
-      setFy((f) => f || m.currentFy);
-    }).catch((e) => setError(e.message));
+    apiGet<MetaDto>("/api/meta").then(setMeta).catch((e) => setError(e.message));
   }, []);
 
   useEffect(() => {
@@ -146,11 +145,7 @@ function ReportsInner() {
     <div>
       <div className="section-head">
         <h1>Reports</h1>
-        <div className="btnrow">
-          <select value={fy} onChange={(e) => setFy(e.target.value)} style={{ width: "auto", minHeight: 36 }}>
-            {meta.financialYears.map((f) => <option key={f} value={f}>FY {f}</option>)}
-          </select>
-        </div>
+        <span className="muted small">FY {fy}</span>
       </div>
 
       <div className="steps">

@@ -1359,3 +1359,34 @@ h1, h2, h3,
   .actionstack:has(> .act:only-child) { grid-template-columns: minmax(0, 520px); }
   .actionstack:has(> .act:first-child:nth-last-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ── Financial year ───────────────────────────────────────────────────
+   One control for the whole app, in the bar above both sections. The
+   artboards put a segmented FY control here; a select is used instead
+   because years accumulate and pills do not. */
+.fyselect { display: flex; align-items: center; }
+.fyselect select {
+  min-height: 32px; width: auto; padding: 4px 26px 4px 11px;
+  border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface-2);
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+                    linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position: right 12px center, right 7px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  font-family: var(--display); font-size: 12px; font-weight: 600;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+  appearance: none; -webkit-appearance: none;
+}
+.fyselect select:hover { border-color: var(--line-2); }
+.fyselect select:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+.topbar .actions { align-items: center; gap: 8px; }
+
+
+/* The filter bar sizes its controls to a common minimum, which caught the
+   checkbox inside a checkline and blew it up to a 110px box. It only showed
+   once the year select left the row and stopped hiding it. */
+.filterbar .checkline { flex: none; margin: 0; align-items: center; }
+.filterbar input[type="checkbox"] {
+  width: 18px; height: 18px; min-width: 0; min-height: 0; flex: none; padding: 0;
+}

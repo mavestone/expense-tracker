@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { apiGet } from "@/lib/client";
 import { formatAUD } from "@/lib/money";
 import ExpenseTable, { decorate, type Row } from "@/components/ExpenseTable";
+import { useFy } from "@/components/FyContext";
 import { Camera } from "lucide-react";
 import type { ExpenseDto, MetaDto } from "@/lib/types";
 
@@ -33,7 +34,7 @@ function ExpensesInner() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [fy, setFy] = useState(params.get("fy") ?? "");
+  const { fy, setFy, ready: fyReady } = useFy();
   const [quarter, setQuarter] = useState(params.get("quarter") ?? "");
   const [categoryId, setCategoryId] = useState(params.get("categoryId") ?? "");
   const [status, setStatus] = useState(params.get("status") ?? "");
@@ -45,6 +46,13 @@ function ExpensesInner() {
   useEffect(() => {
     apiGet<MetaDto>("/api/meta").then(setMeta).catch((e) => setError(e.message));
   }, []);
+
+  // Reports link here with ?fy=&quarter=. The link still decides the year —
+  // it just sets the shared one now instead of a private copy.
+  const linkedFy = params.get("fy");
+  useEffect(() => {
+    if (linkedFy) setFy(linkedFy);
+  }, [linkedFy, setFy]);
 
   const load = useCallback(
     async (offset = 0) => {
@@ -74,10 +82,15 @@ function ExpensesInner() {
     [fy, quarter, categoryId, status, q, flags]
   );
 
+  // Nothing is fetched until the shared year is known. Firing once on the
+  // unresolved "" and again on the real year raced: whichever response
+  // landed last won, and the all-years list beat the filtered one often
+  // enough to show the wrong year's totals under the right year's label.
   useEffect(() => {
+    if (!fyReady) return;
     const t = setTimeout(() => load(0), q ? 300 : 0);
     return () => clearTimeout(t);
-  }, [load, q]);
+  }, [load, q, fyReady]);
 
   const activeFilters = [fy, quarter, categoryId, status, flags, q].filter(Boolean).length;
 
@@ -90,14 +103,13 @@ function ExpensesInner() {
     meta?.categories.find((c) => c.id === id)?.name ?? "Uncategorised";
 
   const applied: { key: string; label: string; clear: () => void }[] = [];
-  if (fy) applied.push({ key: "fy", label: `FY ${fy}`, clear: () => { setFy(""); setQuarter(""); } });
   if (quarter) applied.push({ key: "q", label: quarter, clear: () => setQuarter("") });
   if (categoryId) applied.push({ key: "cat", label: categoryName(categoryId), clear: () => setCategoryId("") });
   if (status) applied.push({ key: "st", label: status, clear: () => setStatus("") });
   if (flags) applied.push({ key: "fl", label: FLAG_LABEL[flags] ?? flags, clear: () => setFlags("") });
   if (q.trim()) applied.push({ key: "q2", label: `"${q.trim()}"`, clear: () => setQ("") });
 
-  function clearAll() { setFy(""); setQuarter(""); setCategoryId(""); setStatus(""); setFlags(""); setQ(""); }
+  function clearAll() { setQuarter(""); setCategoryId(""); setStatus(""); setFlags(""); setQ(""); }
 
   return (
     <div className="expenses">
@@ -117,10 +129,6 @@ function ExpensesInner() {
       <div className="filters">
         <input className="grow" type="search" placeholder="Search supplier, description, notes"
           value={q} onChange={(e) => setQ(e.target.value)} />
-        <select value={fy} onChange={(e) => { setFy(e.target.value); if (!e.target.value) setQuarter(""); }}>
-          <option value="">All years</option>
-          {(meta?.financialYears ?? []).map((f) => <option key={f} value={f}>FY {f}</option>)}
-        </select>
         <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
           <option value="">All categories</option>
           {(meta?.categories ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
