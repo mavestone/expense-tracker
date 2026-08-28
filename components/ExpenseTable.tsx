@@ -60,7 +60,7 @@ export default function ExpenseTable({
   categoryName: (id: string) => string;
 }) {
   return (
-    <div className="tablewrap exptable">
+    <div className="exptable">
       <div className="exphead" role="row">
         <span>Date</span><span>Supplier</span><span>Category</span>
         <span className="r">Amount</span><span className="r">Deductible</span><span className="r">GST</span>
