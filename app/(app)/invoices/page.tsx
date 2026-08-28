@@ -18,6 +18,7 @@ type Invoice = {
   currency: string;
   totalCents: number;
   incomeId: string | null;
+  kind: "services" | "reimbursement";
 };
 
 type Resp = {
@@ -25,11 +26,12 @@ type Resp = {
   byCurrency: { currency: string; count: number; totalCents: number; outstandingCents: number }[];
 };
 
-const FILTERS: { key: string; label: string; status?: string }[] = [
+const FILTERS: { key: string; label: string; status?: string; kind?: string }[] = [
   { key: "all", label: "All" },
   { key: "draft", label: "Drafts", status: "draft" },
   { key: "sent", label: "Awaiting payment", status: "sent" },
   { key: "paid", label: "Paid", status: "paid" },
+  { key: "reimbursement", label: "Reimbursements", kind: "reimbursement" },
 ];
 
 export default function InvoicesPage() {
@@ -44,6 +46,7 @@ export default function InvoicesPage() {
     const p = new URLSearchParams();
     const f = FILTERS.find((x) => x.key === filter);
     if (f?.status) p.set("status", f.status);
+    if (f?.kind) p.set("kind", f.kind);
     if (fy) p.set("fy", fy);
     apiGet<Resp>(`/api/invoices?${p}`).then(setData).catch((e) => setError(e.message));
   }, [filter, fy, fyReady]);
@@ -56,6 +59,7 @@ export default function InvoicesPage() {
         <h1>Invoices</h1>
         <span className="btnrow">
           <Link href="/invoices/new" className="btn small">+ New invoice</Link>
+          <Link href="/invoices/new?kind=reimbursement" className="btn ghost small">+ Reimbursement</Link>
         </span>
       </div>
 
@@ -113,6 +117,7 @@ export default function InvoicesPage() {
                   <tr key={i.id}>
                     <td>
                       <Link href={`/invoices/${i.id}`}><b>{i.number}</b></Link>
+                      {i.kind === "reimbursement" && <span className="pill reimb">Reimbursement</span>}
                       {i.incomeId && <div className="small muted">in ledger</div>}
                     </td>
                     <td>{i.clientName}</td>

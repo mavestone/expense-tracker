@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { invoiceTotals, lineAmountCents, validateInvoiceInput, type InvoiceInput, invoicePdfFilename } from "../lib/invoices";
+import { invoiceTotals, lineAmountCents, validateInvoiceInput, type InvoiceInput, invoicePdfFilename, INVOICE_KINDS } from "../lib/invoices";
 import { validateClientInput, type ClientInput } from "../lib/clients";
 
 const line = (unit: number, qty?: number) => ({ description: "Edit", unitAmountCents: unit, quantityMilli: qty });
@@ -170,5 +170,47 @@ describe("download filename", () => {
 
   it("still produces a filename when the client name is unusable", () => {
     expect(f("RMR_04", "———")).toBe("RMR_04.pdf");
+  });
+});
+
+describe("reimbursement invoices", () => {
+  const base: InvoiceInput = {
+    clientId: "c1",
+    issueDate: "2026-08-28",
+    currency: "USD",
+    gstTreatment: "gst_free",
+    lines: [{ description: "easyJet — Geneva", unitAmountCents: 24551 }],
+  };
+
+  it("offers exactly the two kinds, services first", () => {
+    expect([...INVOICE_KINDS]).toEqual(["services", "reimbursement"]);
+  });
+
+  it("accepts a reimbursement and rejects an invented kind", () => {
+    expect(validateInvoiceInput({ ...base, kind: "reimbursement" })).toEqual([]);
+    // @ts-expect-error — the guard exists for payloads that bypass the type
+    expect(validateInvoiceInput({ ...base, kind: "disbursement" })).toContain(
+      "Kind must be one of services, reimbursement."
+    );
+  });
+
+  it("treats an absent kind as services rather than failing", () => {
+    expect(validateInvoiceInput(base)).toEqual([]);
+  });
+
+  it("does not discount or otherwise alter a recovered cost", () => {
+    // A reimbursement bills the cost through unchanged. The only thing the
+    // kind changes is how it is described and posted, never the arithmetic.
+    const lines = [
+      { description: "easyJet — Geneva", unitAmountCents: 24551 },
+      { description: "DaVinci Resolve Studio", unitAmountCents: 33508 },
+    ];
+    expect(invoiceTotals(lines, "gst_free").totalCents).toBe(58059);
+  });
+
+  it("still adds GST when the client is Australian", () => {
+    // Recovering a cost from a domestic client is a taxable supply like any
+    // other — the kind does not make it GST-free.
+    expect(invoiceTotals([{ description: "Courier", unitAmountCents: 10000 }], "gst").gstCents).toBe(1000);
   });
 });

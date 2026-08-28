@@ -397,6 +397,18 @@ export const invoices = sqliteTable(
 
     // draft | sent | paid | void
     status: text("status").notNull().default("draft"),
+
+    /**
+     * services — work performed, billed at your rates.
+     * reimbursement — costs you carried on the client's behalf, billed on.
+     *
+     * The distinction is not cosmetic. A reimbursement recovers money already
+     * spent, so it is posted gross: the recovery is income and the underlying
+     * cost stays deductible. Keeping the kind on the record is what makes that
+     * pairing legible a year later, when only the bank line survives.
+     */
+    kind: text("kind").notNull().default("services"),
+
     issueDate: text("issue_date").notNull(),
     dueDate: text("due_date").notNull(),
 
@@ -439,8 +451,23 @@ export const invoiceLines = sqliteTable(
     quantityMilli: integer("quantity_milli").notNull().default(1000),
     unitAmountCents: integer("unit_amount_cents").notNull(),
     amountCents: integer("amount_cents").notNull(),
+
+    /**
+     * The expense this line recovers, on a reimbursement invoice. Optional —
+     * a cost can be billed on before it has been entered as a record, and
+     * some are never entered at all. When it is set it is the only thing
+     * tying the income back to the deduction it offsets.
+     *
+     * No amount is derived from it. The expense is in the currency it was
+     * paid in and the invoice is in the client's; converting between them
+     * here would put a second, disagreeing rate next to the frozen one.
+     */
+    expenseId: text("expense_id").references(() => expenses.id),
   },
-  (t) => [index("idx_invoice_lines_invoice").on(t.invoiceId)]
+  (t) => [
+    index("idx_invoice_lines_invoice").on(t.invoiceId),
+    index("idx_invoice_lines_expense").on(t.expenseId),
+  ]
 );
 
 /**

@@ -26,11 +26,26 @@ export type InvoiceLineInput = {
   /** Quantity in thousandths — 1000 = 1, 500 = 0.5, 7500 = 7.5 hours. */
   quantityMilli?: number;
   unitAmountCents: number;
+  /** The expense record this line recovers, on a reimbursement. */
+  expenseId?: string | null;
 };
+
+/**
+ * What the invoice is for.
+ *
+ * `reimbursement` bills on costs already carried for the client. It is a
+ * separate kind rather than a line description because it is posted gross —
+ * the recovery is income and the underlying cost stays deductible — and
+ * because the document has to say so: a client paying back an airfare is
+ * entitled to see it described as a cost recovered, not as a service.
+ */
+export const INVOICE_KINDS = ["services", "reimbursement"] as const;
+export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 
 export type InvoiceInput = {
   clientId: string;
   number?: string | null;
+  kind?: InvoiceKind;
   issueDate: string;
   dueDate?: string | null;
   currency: string;
@@ -64,6 +79,8 @@ export function validateInvoiceInput(input: InvoiceInput): string[] {
     errors.push(`Currency must be one of ${INVOICE_CURRENCIES.join(", ")}.`);
   if (input.gstTreatment !== "gst" && input.gstTreatment !== "gst_free")
     errors.push("GST treatment must be 'gst' or 'gst_free'.");
+  if (input.kind && !(INVOICE_KINDS as readonly string[]).includes(input.kind))
+    errors.push(`Kind must be one of ${INVOICE_KINDS.join(", ")}.`);
   if (!input.lines?.length) errors.push("An invoice needs at least one line.");
   input.lines?.forEach((l, i) => {
     if (!l.description?.trim()) errors.push(`Line ${i + 1}: description is required.`);
@@ -164,6 +181,7 @@ export async function createInvoice(input: InvoiceInput) {
       number,
       clientId: input.clientId,
       status: "draft",
+      kind: input.kind ?? "services",
       issueDate: input.issueDate,
       dueDate,
       currency,
@@ -182,6 +200,7 @@ export async function createInvoice(input: InvoiceInput) {
         quantityMilli: l.quantityMilli ?? 1000,
         unitAmountCents: l.unitAmountCents,
         amountCents: lineAmountCents(l),
+        expenseId: l.expenseId ?? null,
       }))
     );
     await writeAudit(tx, [
@@ -235,6 +254,7 @@ export async function updateInvoice(id: string, input: InvoiceInput) {
       .update(schema.invoices)
       .set({
         clientId: input.clientId,
+        kind: input.kind ?? existing.kind,
         issueDate: input.issueDate,
         dueDate: input.dueDate || existing.dueDate,
         currency: input.currency.toUpperCase(),
@@ -256,6 +276,7 @@ export async function updateInvoice(id: string, input: InvoiceInput) {
         quantityMilli: l.quantityMilli ?? 1000,
         unitAmountCents: l.unitAmountCents,
         amountCents: lineAmountCents(l),
+        expenseId: l.expenseId ?? null,
       }))
     );
     await writeAudit(tx, [
@@ -294,11 +315,15 @@ export async function markInvoiceSent(id: string, opts: { postToIncome?: boolean
         clientAbn: inv.client.abn ?? null,
         invoiceRef: inv.number,
         description: inv.lines.map((l) => l.description).join("; ").slice(0, 500),
-        incomeType: "client_work",
+        incomeType: inv.kind === "reimbursement" ? "reimbursement" : "client_work",
         originalAmountCents: inv.totalCents,
         originalCurrency: inv.currency,
         gstTreatment: inv.gstTreatment as "gst" | "gst_free",
-        notes: `Raised from invoice ${inv.number} in the invoicing module.`,
+        notes:
+          inv.kind === "reimbursement"
+            ? `Raised from reimbursement invoice ${inv.number}. Recovers costs carried for this client; ` +
+              `posted gross, so the underlying expense records stay deductible.`
+            : `Raised from invoice ${inv.number} in the invoicing module.`,
       },
       { source: "manual", auditNote: `From invoice ${inv.number}` }
     );
@@ -362,13 +387,14 @@ export async function voidInvoice(id: string, reason: string) {
 }
 
 export async function listInvoices(
-  filters: { status?: InvoiceStatus[]; clientId?: string; fy?: string; limit?: number } = {}
+  filters: { status?: InvoiceStatus[]; clientId?: string; fy?: string; kind?: InvoiceKind; limit?: number } = {}
 ) {
   const dbi = await db();
   const where = [];
   if (filters.status?.length)
     where.push(sql`${schema.invoices.status} in (${sql.join(filters.status.map((s) => sql`${s}`), sql`, `)})`);
   if (filters.clientId) where.push(eq(schema.invoices.clientId, filters.clientId));
+  if (filters.kind) where.push(eq(schema.invoices.kind, filters.kind));
 
   const rows = await dbi
     .select()

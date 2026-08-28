@@ -1,5 +1,5 @@
 import { api, json } from "@/lib/api";
-import { listInvoices, createInvoice, type InvoiceInput, type InvoiceStatus } from "@/lib/invoices";
+import { listInvoices, createInvoice, INVOICE_KINDS, type InvoiceInput, type InvoiceKind, type InvoiceStatus } from "@/lib/invoices";
 
 export const runtime = "nodejs";
 
@@ -11,6 +11,9 @@ export const GET = api(async (req) => {
       status: status?.length ? status : undefined,
       clientId: p.get("clientId") || undefined,
       fy: p.get("fy") || undefined,
+      kind: (INVOICE_KINDS as readonly string[]).includes(p.get("kind") ?? "")
+        ? (p.get("kind") as InvoiceKind)
+        : undefined,
     })
   );
 });

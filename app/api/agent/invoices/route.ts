@@ -1,12 +1,12 @@
 import { api, json } from "@/lib/api";
 import { checkAgentAuth, agentApiEnabled } from "@/lib/agent-auth";
-import { createInvoice, listInvoices, markInvoiceSent, deleteDraftInvoice, type InvoiceStatus } from "@/lib/invoices";
+import { createInvoice, listInvoices, markInvoiceSent, deleteDraftInvoice, type InvoiceKind, type InvoiceStatus } from "@/lib/invoices";
 import { parseMoneyToCents } from "@/lib/money";
 import { ValidationError } from "@/lib/expenses";
 
 export const runtime = "nodejs";
 
-type LinePayload = { description: string; quantity?: number; amount?: string; amountCents?: number };
+type LinePayload = { description: string; quantity?: number; amount?: string; amountCents?: number; expenseId?: string };
 
 function guard(req: Request): Response | null {
   if (!agentApiEnabled()) return json({ error: "Agent API not configured." }, { status: 503 });
@@ -61,6 +61,8 @@ export const POST = api(
     const b = (await req.json()) as {
       clientId: string;
       issueDate: string;
+      kind?: InvoiceKind;
+      number?: string;
       dueDate?: string;
       currency?: string;
       gstTreatment?: "gst" | "gst_free";
@@ -79,11 +81,14 @@ export const POST = api(
         description: l.description ?? "",
         quantityMilli: Math.round((l.quantity ?? 1) * 1000),
         unitAmountCents: cents,
+        expenseId: l.expenseId ?? null,
       };
     });
 
     let invoice = await createInvoice({
       clientId: b.clientId,
+      number: b.number ?? null,
+      kind: b.kind ?? "services",
       issueDate: b.issueDate,
       dueDate: b.dueDate ?? null,
       currency: b.currency ?? "AUD",

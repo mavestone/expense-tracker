@@ -24,6 +24,10 @@ export const INCOME_GST_TREATMENTS: { value: IncomeGst; label: string }[] = [
 
 export const INCOME_TYPES: { value: string; label: string }[] = [
   { value: "client_work", label: "Client work" },
+  // Costs carried for a client and billed back. Assessable like any other
+  // trading income — it is separated so the return can be read against the
+  // deductions it offsets, not because it is taxed differently.
+  { value: "reimbursement", label: "Cost reimbursement" },
   { value: "licensing", label: "Licensing / royalties" },
   { value: "grant", label: "Grant / rebate" },
   { value: "interest", label: "Interest" },

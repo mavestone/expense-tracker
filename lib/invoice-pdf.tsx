@@ -85,6 +85,7 @@ export function InvoicePdf({ invoice: inv, settings, logo }: InvoicePdfProps) {
   const terms = inv.terms || settings.invoice_terms_default;
   const fromName = settings.business_name || "Mavestone";
   const isTaxInvoice = inv.gstTreatment === "gst";
+  const isReimbursement = inv.kind === "reimbursement";
 
   return (
     <Document
@@ -109,7 +110,15 @@ export function InvoicePdf({ invoice: inv, settings, logo }: InvoicePdfProps) {
           </View>
 
           <View style={s.headRight}>
-            <Text style={s.title}>{isTaxInvoice ? "Tax Invoice" : "Invoice"}</Text>
+            <Text style={s.title}>
+              {isReimbursement
+                ? isTaxInvoice
+                  ? "Tax Invoice — Expenses"
+                  : "Expense Reimbursement"
+                : isTaxInvoice
+                  ? "Tax Invoice"
+                  : "Invoice"}
+            </Text>
             <View style={s.metaBlock}>
               <Text style={s.lbl}>Invoice reference</Text>
               <Text style={s.strong}>{inv.number}</Text>
@@ -150,7 +159,7 @@ export function InvoicePdf({ invoice: inv, settings, logo }: InvoicePdfProps) {
 
         <View style={s.table}>
           <View style={s.th} fixed>
-            <Text style={[s.thText, s.cDesc]}>Description</Text>
+            <Text style={[s.thText, s.cDesc]}>{isReimbursement ? "Cost incurred" : "Description"}</Text>
             <Text style={[s.thText, s.cQty]}>Qty</Text>
             <Text style={[s.thText, s.cUnit]}>Unit price</Text>
             <Text style={[s.thText, s.cAmt]}>Amount</Text>

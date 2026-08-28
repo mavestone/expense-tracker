@@ -10,10 +10,11 @@ import InvoiceForm, { type InvoiceFormValue } from "@/components/InvoiceForm";
 import { useDialog } from "@/components/Dialog";
 import { useToast } from "@/components/Toast";
 
-type Line = { id: string; description: string; quantityMilli: number; unitAmountCents: number; amountCents: number };
+type Line = { id: string; description: string; quantityMilli: number; unitAmountCents: number; amountCents: number; expenseId: string | null };
 type Invoice = {
   id: string;
   number: string;
+  kind: "services" | "reimbursement";
   status: "draft" | "sent" | "paid" | "void";
   issueDate: string;
   dueDate: string;
@@ -69,6 +70,7 @@ export default function InvoiceDetailPage() {
     const initial: InvoiceFormValue = {
       id: inv.id,
       clientId: inv.client.id,
+      kind: inv.kind === "reimbursement" ? "reimbursement" : "services",
       issueDate: inv.issueDate,
       dueDate: inv.dueDate,
       currency: inv.currency,
@@ -80,6 +82,7 @@ export default function InvoiceDetailPage() {
         description: l.description,
         qty: String(l.quantityMilli / 1000),
         unit: (l.unitAmountCents / 100).toFixed(2),
+        expenseId: l.expenseId ?? null,
       })),
     };
     return (
@@ -105,7 +108,10 @@ export default function InvoiceDetailPage() {
             {inv.client.name} · issued {formatDateAU(inv.issueDate)} · due {formatDateAU(inv.dueDate)}
           </p>
         </div>
-        <span className={`pill ${overdue ? "overdue" : inv.status}`}>{overdue ? "overdue" : inv.status}</span>
+        <span className="btnrow">
+          {inv.kind === "reimbursement" && <span className="pill reimb">Reimbursement</span>}
+          <span className={`pill ${overdue ? "overdue" : inv.status}`}>{overdue ? "overdue" : inv.status}</span>
+        </span>
       </div>
 
       {errors.length > 0 && <div className="alert danger">{errors.join(" ")}</div>}

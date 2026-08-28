@@ -265,7 +265,7 @@ const TOOLS = [
   {
     name: "raise_invoice",
     description:
-      "Create an invoice for a client. Amounts are per line and EXCLUDE GST — GST is added when the client is on the 'gst' treatment. Creates a draft by default; pass send:true to also post it to the income ledger, which freezes the FX rate published for the issue date. An issued invoice cannot be edited afterwards, so confirm the details before sending.",
+      "Create an invoice for a client. Amounts are per line and EXCLUDE GST — GST is added when the client is on the 'gst' treatment. Creates a draft by default; pass send:true to also post it to the income ledger, which freezes the FX rate published for the issue date. An issued invoice cannot be edited afterwards, so confirm the details before sending. Set kind:'reimbursement' to bill back costs carried for the client: each line is a cost recovered, amounts are what it took in the invoice currency (never converted here), and lines may carry expenseId to link the recovery to the deduction it offsets.",
     inputSchema: {
       type: "object",
       properties: {
@@ -274,6 +274,11 @@ const TOOLS = [
         dueDate: { type: "string", description: "YYYY-MM-DD (default: issue date + the client's terms)" },
         currency: { type: "string", description: "AUD, USD or GBP (default: the client's default)" },
         gstTreatment: { type: "string", description: "gst | gst_free (default: the client's default)" },
+        kind: {
+          type: "string",
+          description:
+            "services (default) | reimbursement — costs carried for the client and billed back, posted gross so the underlying expenses stay deductible",
+        },
         purchaseOrder: { type: "string" },
         terms: { type: "string" },
         notes: { type: "string" },
@@ -287,6 +292,10 @@ const TOOLS = [
               description: { type: "string" },
               quantity: { type: "number", description: "Default 1; fractions allowed (0.5, 7.5)" },
               amount: { type: "string", description: "Unit price as a decimal string, e.g. \"1250.00\"" },
+              expenseId: {
+                type: "string",
+                description: "Reimbursement lines only — the expense record this line recovers",
+              },
             },
             required: ["description", "amount"],
             additionalProperties: false,

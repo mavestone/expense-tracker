@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiGet, apiSend, ApiError } from "@/lib/client";
 import { formatCurrency, currencySymbol, parseMoneyToCents, centsToDecimalString } from "@/lib/money";
 import ClientQuickAdd, { type NewClient } from "@/components/ClientQuickAdd";
+import { formatDateAU } from "@/lib/fy";
 
 type Client = {
   id: string;
@@ -16,11 +17,24 @@ type Client = {
   paymentTermsDays: number;
 };
 
-type LineDraft = { description: string; qty: string; unit: string };
+type LineDraft = { description: string; qty: string; unit: string; expenseId?: string | null };
+
+type Expense = {
+  id: string;
+  dateIncurred: string;
+  supplierName: string;
+  description: string;
+  originalAmountCents: number;
+  originalCurrency: string;
+  audAmountCents: number;
+};
+
+export type InvoiceKind = "services" | "reimbursement";
 
 export type InvoiceFormValue = {
   id?: string;
   clientId: string;
+  kind: InvoiceKind;
   number?: string;
   issueDate: string;
   dueDate: string;
@@ -38,7 +52,7 @@ function addDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-const EMPTY_LINE: LineDraft = { description: "", qty: "1", unit: "" };
+const EMPTY_LINE: LineDraft = { description: "", qty: "1", unit: "", expenseId: null };
 
 /**
  * Builder for a new or draft invoice. Totals are recomputed here purely so the
@@ -53,6 +67,11 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
   const [v, setV] = useState<InvoiceFormValue>(
     initial ?? {
       clientId: "",
+      kind:
+        (typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("kind") === "reimbursement"
+          ? "reimbursement"
+          : "services") as InvoiceKind,
       issueDate: today,
       dueDate: addDays(today, 14),
       currency: "AUD",
@@ -65,6 +84,9 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
   );
   const [nextNumber, setNextNumber] = useState<string>("");
   const [addingClient, setAddingClient] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQ, setPickerQ] = useState("");
+  const [picked, setPicked] = useState<Expense[] | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -118,6 +140,41 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
       .catch(() => setNextNumber(""));
   }, [v.clientId, initial]);
 
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const t = setTimeout(() => {
+      const p = new URLSearchParams({ limit: "25", status: "active" });
+      if (pickerQ.trim()) p.set("q", pickerQ.trim());
+      apiGet<{ expenses: Expense[] }>(`/api/expenses?${p}`)
+        .then((r) => setPicked(r.expenses))
+        .catch(() => setPicked([]));
+    }, pickerQ ? 250 : 0);
+    return () => clearTimeout(t);
+  }, [pickerOpen, pickerQ]);
+
+  /**
+   * Pull an expense in as a line. The description and the link come across;
+   * the amount deliberately does not. The expense is in the currency it was
+   * paid in and the invoice is in the client's, and this app converts in
+   * exactly one place — the FX engine, on the record. Typing what the
+   * statement says it cost is both accurate and honest about the rate.
+   */
+  function addExpenseLine(e: Expense) {
+    const line: LineDraft = {
+      description: [e.supplierName, e.description].filter(Boolean).join(" — "),
+      qty: "1",
+      unit: "",
+      expenseId: e.id,
+    };
+    setV((prev) => {
+      const blank = prev.lines.findIndex((l) => !l.description.trim() && !l.unit.trim());
+      const lines = blank >= 0
+        ? prev.lines.map((l, i) => (i === blank ? line : l))
+        : [...prev.lines, line];
+      return { ...prev, lines };
+    });
+  }
+
   const totals = useMemo(() => {
     const sub = v.lines.reduce((s, l) => {
       const q = Math.round(parseFloat(l.qty || "0") * 1000);
@@ -138,6 +195,7 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
     try {
       const payload = {
         clientId: v.clientId,
+        kind: v.kind,
         issueDate: v.issueDate,
         dueDate: v.dueDate,
         currency: v.currency,
@@ -151,6 +209,7 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
             description: l.description,
             quantityMilli: Math.round(parseFloat(l.qty || "1") * 1000),
             unitAmountCents: parseMoneyToCents(l.unit || "0") ?? 0,
+            expenseId: l.expenseId ?? null,
           })),
       };
       const res = initial?.id
@@ -186,6 +245,33 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
       {errors.length > 0 && <div className="alert danger">{errors.join(" ")}</div>}
 
       <div className="card">
+        <div className="kindswitch" role="group" aria-label="What this invoice is for">
+          <button
+            type="button"
+            className={v.kind === "services" ? "active" : ""}
+            onClick={() => setV({ ...v, kind: "services" })}
+          >
+            <b>Services</b>
+            <span>Work you performed, billed at your rates</span>
+          </button>
+          <button
+            type="button"
+            className={v.kind === "reimbursement" ? "active" : ""}
+            onClick={() => setV({ ...v, kind: "reimbursement" })}
+          >
+            <b>Reimbursement</b>
+            <span>Costs you carried for the client, billed back</span>
+          </button>
+        </div>
+
+        {v.kind === "reimbursement" && (
+          <p className="hint mb2">
+            Billed back gross: the recovery is income and the underlying expense records stay
+            deductible. Enter each cost in {v.currency} — what your statement shows it took, not a
+            rate worked out here.
+          </p>
+        )}
+
         <div className="grid2">
           <label>
             Client
@@ -238,7 +324,57 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
       </div>
 
       <div className="card mt2">
-        <h2>Lines</h2>
+        <div className="section-head" style={{ margin: "0 0 12px" }}>
+          <h2 style={{ margin: 0 }}>{v.kind === "reimbursement" ? "Costs recovered" : "Lines"}</h2>
+          {v.kind === "reimbursement" && (
+            <button type="button" className="btn ghost small" onClick={() => setPickerOpen((o) => !o)}>
+              {pickerOpen ? "Close" : "Add from expenses"}
+            </button>
+          )}
+        </div>
+
+        {v.kind === "reimbursement" && pickerOpen && (
+          <div className="picker mb2">
+            <input
+              type="search"
+              placeholder="Search supplier or description"
+              value={pickerQ}
+              onChange={(e) => setPickerQ(e.target.value)}
+            />
+            {picked === null ? (
+              <p className="muted small">Loading…</p>
+            ) : picked.length === 0 ? (
+              <p className="muted small">No expense records match.</p>
+            ) : (
+              <ul className="pickerlist">
+                {picked.map((e) => {
+                  const used = v.lines.some((l) => l.expenseId === e.id);
+                  return (
+                    <li key={e.id}>
+                      <span className="pk-date">{formatDateAU(e.dateIncurred)}</span>
+                      <span className="pk-sup">
+                        <b>{e.supplierName}</b>
+                        <span className="muted small">{e.description}</span>
+                      </span>
+                      <span className="pk-amt">
+                        {formatCurrency(e.originalAmountCents, e.originalCurrency)}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn ghost small"
+                        disabled={used}
+                        onClick={() => addExpenseLine(e)}
+                      >
+                        {used ? "Added" : "Add"}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+
         <table className="lines-table">
           <thead>
             <tr>
@@ -259,7 +395,7 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
                   <td>
                     <input
                       value={l.description}
-                      placeholder="20 finished reels — edit, grade, music mix"
+                      placeholder={v.kind === "reimbursement" ? "easyJet — return flight, Geneva" : "20 finished reels — edit, grade, music mix"}
                       onChange={(e) => setLine(i, { description: e.target.value })}
                     />
                   </td>

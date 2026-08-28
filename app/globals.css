@@ -1435,3 +1435,48 @@ h1, h2, h3,
    the name is the link's subject. */
 .exprow .l1:hover { text-decoration: none; }
 .exprow .l1:hover .supplier { text-decoration: underline; }
+
+/* A reimbursement recovers a cost rather than billing work. It reads as a
+   note on the number, not as another status — status is still draft/sent/paid. */
+.pill.reimb {
+  background: var(--accent-soft); color: var(--accent-strong);
+  border: 1px solid var(--accent-line); margin-left: 8px;
+}
+
+/* Two mutually exclusive choices, each with a line of explanation. */
+.kindswitch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.kindswitch button {
+  appearance: none; cursor: pointer; text-align: left; font: inherit;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.kindswitch button b { font-size: 14px; font-weight: 700; color: var(--ink); }
+.kindswitch button span { font-size: 12.5px; line-height: 1.4; }
+.kindswitch button:hover { border-color: var(--line-2); }
+.kindswitch button.active {
+  border-color: var(--accent); background: var(--accent-soft); color: var(--ink-2);
+}
+.kindswitch button.active b { color: var(--accent-strong); }
+@media (max-width: 620px) { .kindswitch { grid-template-columns: 1fr; } }
+
+/* Pulling a logged expense onto a reimbursement. */
+.picker { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; background: var(--surface-2); }
+.picker input[type="search"] { width: 100%; margin-bottom: 10px; }
+.pickerlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow-y: auto; }
+.pickerlist li {
+  display: grid; grid-template-columns: 88px 1fr auto auto; gap: 10px; align-items: center;
+  padding: 8px 10px; border-radius: 10px; font-size: 13px;
+}
+.pickerlist li:hover { background: var(--hover); }
+.pk-date { font-family: var(--display); font-variant-numeric: tabular-nums; color: var(--ink-3); font-size: 12px; }
+.pk-sup { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pk-sup b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-sup span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-amt { font-family: var(--display); font-variant-numeric: tabular-nums; font-weight: 600; }
+@media (max-width: 620px) {
+  .pickerlist li { grid-template-columns: 1fr auto; grid-template-areas: "sup amt" "date btn"; }
+  .pk-sup { grid-area: sup; } .pk-amt { grid-area: amt; } .pk-date { grid-area: date; }
+  .pickerlist li .btn { grid-area: btn; justify-self: end; }
+}
