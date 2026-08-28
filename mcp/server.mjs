@@ -270,6 +270,11 @@ const TOOLS = [
       type: "object",
       properties: {
         clientId: { type: "string", description: "From find_clients" },
+        number: {
+          type: "string",
+          description:
+            "Override the invoice reference. Omit to continue the client's sequence (KC_03, KC_04 …). A date-style ref such as KC_280826 must be passed here — it will not be generated.",
+        },
         issueDate: { type: "string", description: "YYYY-MM-DD — the tax point, and the FX rate date" },
         dueDate: { type: "string", description: "YYYY-MM-DD (default: issue date + the client's terms)" },
         currency: { type: "string", description: "AUD, USD or GBP (default: the client's default)" },

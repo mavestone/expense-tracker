@@ -1,6 +1,6 @@
 import { api, json } from "@/lib/api";
 import { checkAgentAuth, agentApiEnabled } from "@/lib/agent-auth";
-import { createInvoice, listInvoices, markInvoiceSent, deleteDraftInvoice, type InvoiceKind, type InvoiceStatus } from "@/lib/invoices";
+import { createInvoice, listInvoices, markInvoiceSent, deleteDraftInvoice, INVOICE_KINDS, type InvoiceKind, type InvoiceStatus } from "@/lib/invoices";
 import { parseMoneyToCents } from "@/lib/money";
 import { ValidationError } from "@/lib/expenses";
 
@@ -24,6 +24,9 @@ export const GET = api(
       status: status?.length ? status : undefined,
       clientId: p.get("clientId") || undefined,
       fy: p.get("fy") || undefined,
+      kind: (INVOICE_KINDS as readonly string[]).includes(p.get("kind") ?? "")
+        ? (p.get("kind") as InvoiceKind)
+        : undefined,
     });
     const origin = new URL(req.url).origin;
     return json({
@@ -37,6 +40,7 @@ export const GET = api(
         id: i.id,
         url: `${origin}/invoices/${i.id}`,
         number: i.number,
+        kind: i.kind,
         client: i.clientName,
         status: i.status,
         issueDate: i.issueDate,
