@@ -348,7 +348,13 @@ table.data tfoot td { font-weight: 720; border-top: 2px solid var(--line-2); bor
 
 /* Progress steps */
 .steps { display: flex; gap: 6px; margin-bottom: 15px; font-size: 12.5px; font-weight: 620; color: var(--ink-3); flex-wrap: wrap; }
-.steps .step { padding: 4.5px 12px; border-radius: 999px; background: var(--chip); transition: background 0.12s ease, color 0.12s ease; }
+/* These are <button>s, so they take the UA's black unless told otherwise —
+   which read as invisible on a dark chip. Colour explicitly. */
+.steps .step {
+  padding: 4.5px 12px; border-radius: 999px; background: var(--chip); color: var(--ink-2);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.steps .step:hover { color: var(--ink); }
 .steps .step.active { background: var(--accent-soft); color: var(--accent-strong); }
 .steps .step.done { background: var(--ok-soft); color: var(--ok-ink); }
 
@@ -596,9 +602,10 @@ table.csv tbody tr.sel td { background: var(--accent-soft) !important; }
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   font-size: 12.5px; color: var(--ink-3); margin-top: 10px; min-height: 20px;
 }
-.swatch { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+/* Bars, so the key is a bar — a 3px dash read as a line series. */
+.swatch { display: inline-block; width: 9px; height: 11px; border-radius: 3px 3px 1px 1px; margin-right: 7px; vertical-align: -1px; }
 .swatch.income { background: var(--accent); }
-.swatch.expense { background: var(--warn); }
+.swatch.expense { background: var(--warn); opacity: 0.85; }
 .trend-readout { margin-left: auto; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 @media (max-width: 560px) { .trend-readout { margin-left: 0; width: 100%; } }
 
@@ -1528,3 +1535,23 @@ h1, h2, h3,
   font-size: 13px; color: var(--ink-2); cursor: pointer;
 }
 .remindline input { width: 17px; height: 17px; min-height: 0; margin-top: 1px; flex: none; accent-color: var(--accent); }
+
+/* A client name is the thing you scan for, so it does not give up width to
+   the description beside it. The description shrinks instead, and the name
+   only ellipsises once it is genuinely long on its own. */
+.exprow .supplier { flex: none; max-width: 42%; }
+.exprow .desc { flex: 1 1 auto; min-width: 0; }
+
+/* Date + ref as one fixed block, so every row's badges line up. */
+.exprow .metalead {
+  display: inline-flex; gap: 6px; align-items: baseline; flex: none;
+  min-width: 21ch; font-variant-numeric: tabular-nums;
+}
+.exprow .metaref { white-space: nowrap; }
+
+@media (max-width: 560px) {
+  /* Nothing lines up in a single column anyway, and the reserved width
+     would just push the badges onto their own row. */
+  .exprow .metalead { min-width: 0; }
+  .exprow .supplier { max-width: 100%; }
+}

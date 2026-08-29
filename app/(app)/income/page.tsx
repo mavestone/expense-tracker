@@ -371,8 +371,13 @@ export default function IncomePage() {
                 )}
               </Link>
               <div className="meta">
-                <span>{formatDateAU(r.dateEarned)}</span>
-                {r.invoiceRef && <span>· {r.invoiceRef}</span>}
+                {/* Date and ref share one fixed-width block so the badges that
+                    follow start at the same place on every row — otherwise a
+                    long invoice ref shunts them sideways. */}
+                <span className="metalead">
+                  {formatDateAU(r.dateEarned)}
+                  {r.invoiceRef && <span className="metaref">· {r.invoiceRef}</span>}
+                </span>
                 {r.datePaid ? (
                   <span className="badge ok">paid {formatDateAU(r.datePaid)}</span>
                 ) : (

@@ -2,11 +2,10 @@
 
 import { useMemo, useState } from "react";
 import {
-  Area,
+  Bar,
+  BarChart,
   CartesianGrid,
-  ComposedChart,
-  Line,
-  ReferenceLine,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -43,7 +42,12 @@ function axisTick(v: number): string {
 }
 
 /**
- * Income against deductible spend across a financial year.
+ * Income against deductible spend across a financial year, as paired bars.
+ *
+ * Bars rather than lines because a financial year is mostly future: a line has
+ * to join every month, so the eleven that have not happened yet were drawn at
+ * zero and read as a collapse. A bar for a month with nothing in it simply is
+ * not there.
  *
  * Recharts handles the geometry; every colour comes from the app's CSS custom
  * properties rather than a palette of its own, so the chart follows the theme
@@ -52,7 +56,7 @@ function axisTick(v: number): string {
 export default function TrendChart({ months }: { months: TrendMonth[] }) {
   const [active, setActive] = useState<Row | null>(null);
 
-  const { data, hasData, totals, peak, showPeakRule } = useMemo(() => {
+  const { data, hasData, totals, peak } = useMemo(() => {
     const data: Row[] = months.map((m) => ({
       ...m,
       income: m.incomeCents / 100,
@@ -64,15 +68,11 @@ export default function TrendChart({ months }: { months: TrendMonth[] }) {
     // The best month is worth marking — it is the one the owner asks about.
     const peakIdx = data.reduce((bi, r, i) => (r.income > data[bi].income ? i : bi), 0);
     const peak = data[peakIdx];
-    // Only mark an interior month — on the first or last the rule sits on the
-    // plot edge and reads as a border.
-    const showPeakRule = peak && peak.income > 0 && peakIdx > 0 && peakIdx < data.length - 1;
     return {
       data,
       hasData: months.some((m) => m.incomeCents > 0 || m.expenseCents > 0),
       totals: { incomeCents, expenseCents, netCents: incomeCents - expenseCents },
       peak: peak && peak.income > 0 ? peak : null,
-      showPeakRule,
     };
   }, [months]);
 
@@ -115,27 +115,18 @@ export default function TrendChart({ months }: { months: TrendMonth[] }) {
       <div className="trend-plot">
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
+            <BarChart
               data={data}
               margin={{ top: 14, right: 8, left: 4, bottom: 4 }}
+              barGap={3}
+              barCategoryGap="22%"
               // recharts 3 hands back an index rather than the payload here.
-              onMouseMove={(s) => {
-                const i = typeof s?.activeIndex === "number" ? s.activeIndex : Number(s?.activeIndex);
+              onMouseMove={(st) => {
+                const i = typeof st?.activeIndex === "number" ? st.activeIndex : Number(st?.activeIndex);
                 setActive(Number.isInteger(i) && i >= 0 && i < data.length ? data[i] : null);
               }}
               onMouseLeave={() => setActive(null)}
             >
-              <defs>
-                <linearGradient id="incomeArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.26} />
-                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="expenseArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--warn)" stopOpacity={0.14} />
-                  <stop offset="100%" stopColor="var(--warn)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-
               <CartesianGrid stroke="var(--line)" strokeDasharray="3 7" vertical={false} />
 
               <XAxis
@@ -144,8 +135,8 @@ export default function TrendChart({ months }: { months: TrendMonth[] }) {
                 tickLine={false}
                 tickMargin={12}
                 tick={{ fontSize: 11.5, fill: "var(--ink-3)" }}
-                interval="preserveStartEnd"
-                minTickGap={4}
+                interval={0}
+                minTickGap={0}
               />
               <YAxis
                 axisLine={false}
@@ -156,51 +147,26 @@ export default function TrendChart({ months }: { months: TrendMonth[] }) {
                 tickFormatter={axisTick}
               />
 
-              {showPeakRule && peak && (
-                <ReferenceLine
-                  x={peak.label}
-                  stroke="var(--accent)"
-                  strokeDasharray="3 4"
-                  strokeOpacity={0.5}
-                  strokeWidth={1}
-                />
-              )}
-
               <Tooltip
-                cursor={{ stroke: "var(--line-2)", strokeDasharray: "3 3", strokeWidth: 1 }}
+                cursor={{ fill: "var(--hover)" }}
                 content={<TrendTooltip />}
                 animationDuration={120}
               />
 
-              <Area
-                type="linear"
-                dataKey="expense"
-                stroke="none"
-                fill="url(#expenseArea)"
-                isAnimationActive={false}
-              />
-              <Area type="linear" dataKey="income" stroke="none" fill="url(#incomeArea)" isAnimationActive={false} />
-
-              <Line
-                type="linear"
-                dataKey="expense"
-                stroke="var(--warn)"
-                strokeWidth={2}
-                strokeDasharray="5 4"
-                dot={false}
-                activeDot={{ r: 4.5, fill: "var(--warn)", stroke: "var(--surface)", strokeWidth: 2 }}
-                isAnimationActive={false}
-              />
-              <Line
-                type="linear"
-                dataKey="income"
-                stroke="var(--accent)"
-                strokeWidth={2.4}
-                dot={false}
-                activeDot={{ r: 5, fill: "var(--accent)", stroke: "var(--surface)", strokeWidth: 2.5 }}
-                isAnimationActive={false}
-              />
-            </ComposedChart>
+              {/* A month with nothing in it gets no bar at all. The line chart
+                  this replaced drew future months as zero, which read as income
+                  collapsing rather than as a year that has not happened yet. */}
+              <Bar dataKey="income" radius={[5, 5, 2, 2]} isAnimationActive={false} maxBarSize={26}>
+                {data.map((r) => (
+                  <Cell key={r.key} fill="var(--accent)" fillOpacity={r.income > 0 ? 1 : 0} />
+                ))}
+              </Bar>
+              <Bar dataKey="expense" radius={[5, 5, 2, 2]} isAnimationActive={false} maxBarSize={26}>
+                {data.map((r) => (
+                  <Cell key={r.key} fill="var(--warn)" fillOpacity={r.expense > 0 ? 0.85 : 0} />
+                ))}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         ) : (
           <div className="empty" style={{ padding: "72px 10px" }}>

@@ -142,7 +142,7 @@ export default function FyClosePanel({ fy }: { fy: string }) {
   const c = s.closure;
 
   return (
-    <div className={`card mb2${s.finalised ? " finalised" : ""}`}>
+    <div className={`card mt2 mb2${s.finalised ? " finalised" : ""}`}>
       <div className="section-head" style={{ margin: 0 }}>
         <h2 style={{ margin: 0 }}>
           FY {fy}{" "}
