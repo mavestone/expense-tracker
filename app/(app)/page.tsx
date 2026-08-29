@@ -73,8 +73,12 @@ export default function HomePage() {
     );
 
   const a = data.actions;
-  const outstanding = [a.unpaid ? 1 : 0, a.triage && a.triage.undecided > 0 ? 1 : 0, a.blockedGst ? 1 : 0]
-    .reduce((s, n) => s + n, 0);
+  const outstanding = [
+    a.unpaid ? 1 : 0,
+    a.triage && a.triage.undecided > 0 ? 1 : 0,
+    a.statementDue ? 1 : 0,
+    a.blockedGst ? 1 : 0,
+  ].reduce((s, n) => s + n, 0);
 
   return (
     <div className="overview">
@@ -85,7 +89,7 @@ export default function HomePage() {
               ? `${hello ?? "Hello"}${hello && ownerName ? `, ${ownerName}` : ""}`
               : outstanding === 1
                 ? "One thing needs you"
-                : `${outstanding === 2 ? "Two" : "Three"} things need you`}
+                : `${["", "One", "Two", "Three", "Four"][outstanding] ?? outstanding} things need you`}
           </h1>
           <p className="greet-sub muted small">
             FY {activeFy}

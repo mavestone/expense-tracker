@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, ListChecks, Receipt, Check, Camera, FileText } from "lucide-react";
+import { AlertTriangle, ListChecks, Receipt, Check, Camera, FileText, CalendarClock } from "lucide-react";
 import { formatAUD, formatCurrency } from "@/lib/money";
 import { formatDateShort } from "@/lib/fy";
 
@@ -17,6 +17,11 @@ export type ActionData = {
     };
   } | null;
   triage: { undecided: number; total: number; autoFiled: number; business: number } | null;
+  statementDue: {
+    count: number;
+    accounts: { label: string; months: string[] }[];
+    first: { label: string; month: string };
+  } | null;
   blockedGst: {
     count: number; totalCents: number; thresholdCents: number;
     first: { id: string; supplier: string; date: string; audCents: number; gstCents: number };
@@ -94,6 +99,31 @@ export default function ActionStack({ data, nextBas }: { data: ActionData; nextB
           </div>
           <div className="btnrow">
             <Link href="/statements" className="btn" style={{ flex: 1 }}>Start triage</Link>
+          </div>
+        </article>
+      )}
+
+      {data.statementDue && (
+        <article className="card act accent">
+          <div className="act-label"><CalendarClock size={14} /> Statement due</div>
+          <div className="act-figure">
+            {data.statementDue.first.month.split(" ")[0]}
+            <span className="act-of">{data.statementDue.first.month.split(" ")[1]}</span>
+          </div>
+          <div className="act-context">
+            <div><b>{data.statementDue.first.label}</b> — no statement covering it yet.</div>
+            {data.statementDue.count > 1 && (
+              <div>
+                {data.statementDue.count} month{data.statementDue.count === 1 ? "" : "s"} outstanding:{" "}
+                {data.statementDue.accounts
+                  .map((a) => `${a.label} — ${a.months.join(", ")}`)
+                  .join("; ")}
+              </div>
+            )}
+          </div>
+          <div className="btnrow">
+            <Link href="/import" className="btn" style={{ flex: 1 }}>Upload statement</Link>
+            <Link href="/statements" className="btn ghost">Statements</Link>
           </div>
         </article>
       )}

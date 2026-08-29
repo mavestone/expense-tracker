@@ -1,0 +1,1 @@
+ALTER TABLE `statement_accounts` ADD `remind_monthly` integer DEFAULT false NOT NULL;

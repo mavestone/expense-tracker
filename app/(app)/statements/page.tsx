@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { apiGet } from "@/lib/client";
+import { apiGet, apiSend } from "@/lib/client";
 import { formatAUD, formatCurrency } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 import { useDialog } from "@/components/Dialog";
@@ -18,6 +18,7 @@ type StatementFile = {
 
 type Account = {
   id: string; label: string; institution: string; accountRef: string | null; kind: string;
+  remindMonthly: boolean;
   progress: Progress; statements: StatementFile[];
 };
 
@@ -246,6 +247,35 @@ export default function StatementsPage() {
               </button>
             ))}
           </div>
+
+          {current && (
+            <label className="remindline">
+              <input
+                type="checkbox"
+                checked={current.remindMonthly}
+                onChange={async (e) => {
+                  const on = e.target.checked;
+                  setOv((prev) =>
+                    prev
+                      ? { ...prev, accounts: prev.accounts.map((a) => (a.id === current.id ? { ...a, remindMonthly: on } : a)) }
+                      : prev
+                  );
+                  try {
+                    await apiSend(`/api/statements/accounts/${current.id}`, "PATCH", { remindMonthly: on });
+                    toast(on ? `Will chase ${current.label} monthly` : `Reminder off for ${current.label}`);
+                  } catch (err) {
+                    setError((err as Error).message);
+                  }
+                }}
+              />
+              <span>
+                Remind me monthly
+                <span className="muted small">
+                  {" "}— once a month ends, the overview asks for {current.label} until a statement covering it is in.
+                </span>
+              </span>
+            </label>
+          )}
 
           {current && current.statements.length > 0 && (
             <div className="stfiles mb2">

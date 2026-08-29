@@ -957,12 +957,16 @@ a:hover > .card, a:hover > .stat { transform: translateY(-1px); box-shadow: var(
 /* The active sub-nav underline slides rather than jumping. */
 .subnav a { transition: color 0.14s ease, border-color 0.18s ease; }
 
-/* Pills carry a dot so status reads without relying on colour alone. */
-.pill::before {
+/* A dot so STATUS reads without relying on colour alone. Named explicitly
+   rather than applied to every pill: a category chip and a Capital tag are
+   labels, not states, and the dot on those was just a speck of noise. */
+.pill.draft::before,
+.pill.sent::before,
+.pill.paid::before,
+.pill.overdue::before {
   content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 999px;
   background: currentColor; margin-right: 6px; vertical-align: 1.5px; opacity: 0.85;
 }
-.pill.void::before { display: none; }
 
 /* The totals for whatever the filters currently select — the number you came
    for, so it sits above the list rather than inside it as fine print. */
@@ -1515,3 +1519,12 @@ h1, h2, h3,
   .reimb-meta, .reimb-pay { flex-direction: column; gap: 10px; }
   .reimb-meta .r, .reimb-pay .r { text-align: left; }
 }
+
+/* Per-account monthly reminder. Sits with the account, not in Settings — it
+   is a fact about how that account is reconciled, and this is where you are
+   when you decide it. */
+.remindline {
+  display: flex; align-items: flex-start; gap: 9px; margin: 0 0 14px;
+  font-size: 13px; color: var(--ink-2); cursor: pointer;
+}
+.remindline input { width: 17px; height: 17px; min-height: 0; margin-top: 1px; flex: none; accent-color: var(--accent); }

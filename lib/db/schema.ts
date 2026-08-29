@@ -279,6 +279,13 @@ export const statementAccounts = sqliteTable("statement_accounts", {
   accountRef: text("account_ref"), // masked: "BSB 633-123 · 200645521"
   kind: text("kind").notNull().default("bank"), // bank | card
   sortOrder: integer("sort_order").notNull().default(0),
+
+  /**
+   * Whether the overview should chase a statement for this account once the
+   * month it covers has ended. Off by default: an account nobody has agreed
+   * to reconcile monthly should not start nagging on its own.
+   */
+  remindMonthly: integer("remind_monthly", { mode: "boolean" }).notNull().default(false),
 });
 
 export const statements = sqliteTable(

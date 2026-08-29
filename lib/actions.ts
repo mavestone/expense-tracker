@@ -14,7 +14,7 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db, schema } from "./db";
 import { getSettings } from "./settings";
-import { reviewProgress } from "./statements";
+import { reviewProgress, statementsDue, monthLabel } from "./statements";
 import { receiptCountMap } from "./expenses";
 import { applyBp } from "./money";
 import { todayInTz, daysBetween } from "./fy";
@@ -75,7 +75,19 @@ export async function actionStack(fy: string) {
         }
       : null;
 
-  // ── 3. GST credits being forfeited ─────────────────────────────────────
+  // ── 3. Statements not yet handed over ──────────────────────────────────
+  // Only for accounts set to remind monthly, and only for months that have
+  // actually ended — the 1st is when last month becomes uploadable.
+  const due = await statementsDue(today);
+  const statementDue = due.length
+    ? {
+        count: due.reduce((n, a) => n + a.months.length, 0),
+        accounts: due.map((a) => ({ label: a.label, months: a.months.map(monthLabel) })),
+        first: { label: due[0].label, month: monthLabel(due[0].months[0]) },
+      }
+    : null;
+
+  // ── 4. GST credits being forfeited ─────────────────────────────────────
   // A GST purchase over the threshold with no tax invoice cannot be claimed.
   // It stays visible because it is the only thing on the screen costing money.
   const expenses = await d
@@ -112,8 +124,9 @@ export async function actionStack(fy: string) {
     today,
     unpaid,
     triage,
+    statementDue,
     blockedGst,
     /** True when nothing is outstanding — the screen's most common state. */
-    allClear: !unpaid && !blockedGst && !(triage && triage.undecided > 0),
+    allClear: !unpaid && !blockedGst && !statementDue && !(triage && triage.undecided > 0),
   };
 }

@@ -620,3 +620,89 @@ export async function bulkReview(
   });
   return { updated };
 }
+
+
+/* ── Monthly statement reminders ────────────────────────────────────────
+ *
+ * Automating ingestion was considered and dropped: a live email feed and an
+ * uploaded statement describe the same transaction twice, and reconciling the
+ * two costs more than the upload it saves. What is left worth automating is
+ * remembering, so this only answers one question — which months has an account
+ * agreed to reconcile monthly and not been given a statement for.
+ */
+
+/** "2026-08" for the calendar month `back` months before the one holding `iso`. */
+function monthKeyBefore(iso: string, back: number): string {
+  const [y, m] = iso.split("-").map(Number);
+  const total = y * 12 + (m - 1) - back;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
+}
+
+function monthBounds(key: string): { start: string; end: string } {
+  const [y, m] = key.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { start: `${key}-01`, end: `${key}-${String(last).padStart(2, "0")}` };
+}
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+export function monthLabel(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  return `${MONTH_NAMES[m - 1]} ${y}`;
+}
+
+/** How many complete months back to chase. Beyond this it is history, not a nudge. */
+const REMINDER_LOOKBACK_MONTHS = 3;
+
+/**
+ * Complete months with no statement, for accounts set to remind monthly.
+ *
+ * A month counts as covered if a statement's period spans it, or — because
+ * period dates are optional on an ingest — if any line for that account falls
+ * inside it. The second test is what makes this work on statements whose
+ * parser never set a period.
+ */
+export async function statementsDue(today: string) {
+  const d = await db();
+  const accounts = (await d.select().from(schema.statementAccounts)).filter((a) => a.remindMonthly);
+  if (accounts.length === 0) return [];
+
+  const months = Array.from({ length: REMINDER_LOOKBACK_MONTHS }, (_, i) => monthKeyBefore(today, i + 1));
+  const out: { accountId: string; label: string; institution: string; months: string[] }[] = [];
+
+  for (const a of accounts) {
+    const [stmts, txns] = await Promise.all([
+      d.select().from(schema.statements).where(eq(schema.statements.accountId, a.id)),
+      d
+        .select({ date: schema.statementTransactions.date })
+        .from(schema.statementTransactions)
+        .where(eq(schema.statementTransactions.accountId, a.id)),
+    ]);
+    // An account with nothing in it at all has never been reconciled here;
+    // chasing it for three months of history is noise, not a reminder.
+    if (stmts.length === 0) continue;
+
+    // Nor is anything before the account's first statement a gap. Reconciling
+    // from today forward is a decision; being told you are three months behind
+    // on the day you switch it on is just wrong.
+    const earliest = [
+      ...stmts.map((st) => st.periodStart).filter(Boolean),
+      ...txns.map((t) => t.date),
+    ].sort()[0];
+    const floor = earliest ? earliest.slice(0, 7) : null;
+
+    const seen = new Set(txns.map((t) => t.date.slice(0, 7)));
+    const missing = months.filter((key) => {
+      if (floor && key < floor) return false;
+      if (seen.has(key)) return false;
+      const { start, end } = monthBounds(key);
+      return !stmts.some((st) => st.periodStart && st.periodEnd && st.periodStart <= start && st.periodEnd >= end);
+    });
+
+    if (missing.length) out.push({ accountId: a.id, label: a.label, institution: a.institution, months: missing.sort() });
+  }
+  return out;
+}
