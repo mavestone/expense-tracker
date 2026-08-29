@@ -100,7 +100,7 @@ const s = StyleSheet.create({
   rPayLeft: { width: "58%" },
   rPayRight: { width: "38%", textAlign: "right" },
   rOnline: { backgroundColor: "#ededea", paddingHorizontal: 14, paddingVertical: 9 },
-  rFoot: { position: "absolute", bottom: 26, left: 46, right: 46, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 0.6, borderTopColor: RULE, paddingTop: 8, fontSize: 7.5, color: MUTED },
+  rFootLeft: { position: "absolute", bottom: 26, left: 46, right: 46, borderTopWidth: 0.6, borderTopColor: RULE, paddingTop: 8, fontSize: 7.5, color: MUTED },
 });
 
 
@@ -121,6 +121,11 @@ const LONG_MONTHS = [
  * be: "4 – 20 August 2026" inside one month, "4 August – 3 September 2026"
  * across two. A single date prints on its own rather than as a range of one.
  */
+function longDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${Number(d)} ${LONG_MONTHS[Number(m) - 1] ?? ""} ${y}`.replace(/\s+/g, " ").trim();
+}
+
 function periodLabel(dates: string[]): string {
   const sorted = [...dates].filter(Boolean).sort();
   if (sorted.length === 0) return "";
@@ -192,11 +197,11 @@ function ReimbursementBody({ invoice: inv, settings }: { invoice: InvoiceDetail;
       <View style={s.rMetaRow}>
         <View style={s.rMetaCol}>
           <Text style={s.lbl}>Period</Text>
-          <Text>{period || formatDateAU(inv.issueDate)}</Text>
+          <Text>{period || longDate(inv.issueDate)}</Text>
         </View>
         <View style={s.rMetaColRight}>
           <Text style={s.lbl}>Invoice date</Text>
-          <Text>{formatDateAU(inv.issueDate)}</Text>
+          <Text>{longDate(inv.issueDate)}</Text>
         </View>
       </View>
 
@@ -266,13 +271,19 @@ function ReimbursementBody({ invoice: inv, settings }: { invoice: InvoiceDetail;
         </View>
       ) : null}
 
-      <View style={s.rFoot} fixed>
-        <Text>
-          {`Invoice ${inv.number}  ·  ${owner}`}
-          {settings.business_abn ? `  ·  ABN ${settings.business_abn}` : ""}
-        </Text>
-        <Text render={({ pageNumber }) => `Page ${pageNumber}`} />
-      </View>
+      {/* One element, not two: @react-pdf paints only the first of two
+          absolutely-positioned siblings sharing a box, so the page number
+          rides on the same line rather than being right-aligned opposite it.
+          It appears only when the expense list actually runs to two pages. */}
+      <Text
+        style={s.rFootLeft}
+        fixed
+        render={({ pageNumber, totalPages }) =>
+          `Invoice ${inv.number}  ·  ${owner}` +
+          (settings.business_abn ? `  ·  ABN ${settings.business_abn}` : "") +
+          (totalPages > 1 ? `  ·  Page ${pageNumber} of ${totalPages}` : "")
+        }
+      />
     </Page>
   );
 }
