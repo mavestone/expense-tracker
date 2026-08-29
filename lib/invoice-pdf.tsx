@@ -69,7 +69,213 @@ const s = StyleSheet.create({
   terms: { color: INK },
   note: { marginBottom: 5 },
   pageNum: { position: "absolute", bottom: 26, left: 46, right: 46, textAlign: "center", fontSize: 7.5, color: MUTED },
+
+  // ── Reimbursement layout ────────────────────────────────────────────
+  // A recovered cost is evidence, not a priced service, so this reads as a
+  // statement of what was spent: one row per charge, with the date, category
+  // and place the client would recognise from their own records.
+  rTitle: { fontSize: 30, fontFamily: "Helvetica-Bold", color: "#1f2a44", letterSpacing: -0.5 },
+  rRule: { borderBottomWidth: 1.6, borderBottomColor: "#1f2a44", marginTop: 16, marginBottom: 20 },
+  rMetaRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
+  rMetaCol: { width: "52%" },
+  rMetaColRight: { width: "44%", textAlign: "right" },
+  rAmountDue: { fontSize: 19, fontFamily: "Helvetica-Bold", color: INK, marginTop: 1 },
+  rSection: { fontSize: 11, fontFamily: "Helvetica-Bold", color: INK, marginTop: 14, marginBottom: 8 },
+
+  rTh: { flexDirection: "row", borderBottomWidth: 0.8, borderBottomColor: "#cfd4dc", paddingBottom: 4 },
+  rTr: { flexDirection: "row", paddingVertical: 6, alignItems: "flex-start" },
+  rTrAlt: { flexDirection: "row", paddingVertical: 6, alignItems: "flex-start", backgroundColor: "#f4f4f2" },
+  rcDate: { width: "10%", paddingLeft: 4, paddingRight: 4 },
+  rcDesc: { width: "42%", paddingRight: 8 },
+  rcCat: { width: "17%", paddingRight: 6 },
+  rcLoc: { width: "16%", paddingRight: 6 },
+  rcAmt: { width: "15%", textAlign: "right", paddingRight: 4 },
+
+  rTotalRow: { flexDirection: "row", paddingTop: 12, paddingBottom: 6, alignItems: "baseline" },
+  rTotalLabel: { width: "52%", paddingLeft: 4, fontFamily: "Helvetica-Bold", color: INK, fontSize: 10 },
+  rTotalCcy: { width: "33%", textAlign: "right", color: BODY },
+  rTotalAmt: { width: "15%", textAlign: "right", fontFamily: "Helvetica-Bold", color: INK, fontSize: 14, paddingRight: 4 },
+
+  rPayWrap: { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#f4f4f2", padding: 14, marginTop: 20 },
+  rPayLeft: { width: "58%" },
+  rPayRight: { width: "38%", textAlign: "right" },
+  rOnline: { backgroundColor: "#ededea", paddingHorizontal: 14, paddingVertical: 9 },
+  rFoot: { position: "absolute", bottom: 26, left: 46, right: 46, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 0.6, borderTopColor: RULE, paddingTop: 8, fontSize: 7.5, color: MUTED },
 });
+
+
+/** "2026-08-04" -> "04 Aug". The year lives in the period line, not on every row. */
+function shortDate(iso: string): string {
+  const [, m, d] = iso.split("-");
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${d} ${months[Number(m) - 1] ?? ""}`.trim();
+}
+
+const LONG_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * The span the costs were incurred over, collapsed as far as it honestly can
+ * be: "4 – 20 August 2026" inside one month, "4 August – 3 September 2026"
+ * across two. A single date prints on its own rather than as a range of one.
+ */
+function periodLabel(dates: string[]): string {
+  const sorted = [...dates].filter(Boolean).sort();
+  if (sorted.length === 0) return "";
+  const one = (iso: string, withMonth = true, withYear = true) => {
+    const [y, m, d] = iso.split("-");
+    return [String(Number(d)), withMonth ? LONG_MONTHS[Number(m) - 1] : null, withYear ? y : null]
+      .filter(Boolean)
+      .join(" ");
+  };
+  const a = sorted[0];
+  const b = sorted[sorted.length - 1];
+  if (a === b) return one(a);
+  const [ay, am] = a.split("-");
+  const [by, bm] = b.split("-");
+  if (ay === by && am === bm) return `${one(a, false, false)} – ${one(b)}`;
+  if (ay === by) return `${one(a, true, false)} – ${one(b)}`;
+  return `${one(a)} – ${one(b)}`;
+}
+
+/** Bare decimal — the currency is stated once, in the column head and total. */
+function plainAmount(cents: number): string {
+  return (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function isUrl(v: string): boolean {
+  return /^https?:\/\//i.test(v.trim());
+}
+
+/**
+ * The reimbursement document: an itemised statement of costs carried for the
+ * client. No terms block and no explanatory footnote — the rows are the
+ * explanation, and anything else just invites the client to read past them.
+ */
+function ReimbursementBody({ invoice: inv, settings }: { invoice: InvoiceDetail; settings: AppSettings }) {
+  const c = inv.client;
+  const payTo = payToFor(settings, inv.currency);
+  const allRows = payTo ? parsePaymentBlock(payTo) : [];
+  const online = allRows.find((r) => isUrl(r.value));
+  const payRows = allRows.filter((r) => r !== online);
+  const owner = settings.owner_name || settings.business_name || "Mavestone";
+  const period = periodLabel(inv.lines.map((l) => l.lineDate ?? "").filter(Boolean));
+
+  return (
+    <Page size="A4" style={s.page}>
+      <View style={s.head}>
+        <View style={s.headLeft}>
+          <Text style={s.rTitle}>INVOICE</Text>
+        </View>
+        <View style={s.headRight}>
+          <Text style={s.strong}>{owner}</Text>
+          {settings.business_abn ? <Text>ABN {settings.business_abn}</Text> : null}
+          {settings.business_email ? <Text>{settings.business_email}</Text> : null}
+          {settings.business_phone ? <Text>{settings.business_phone}</Text> : null}
+        </View>
+      </View>
+      <View style={s.rRule} />
+
+      <View style={s.rMetaRow}>
+        <View style={s.rMetaCol}>
+          <Text style={s.lbl}>Bill to</Text>
+          <Text style={s.strong}>{c.name}</Text>
+        </View>
+        <View style={s.rMetaColRight}>
+          <Text style={s.lbl}>Invoice number</Text>
+          <Text style={s.strong}>{inv.number}</Text>
+        </View>
+      </View>
+
+      <View style={s.rMetaRow}>
+        <View style={s.rMetaCol}>
+          <Text style={s.lbl}>Period</Text>
+          <Text>{period || formatDateAU(inv.issueDate)}</Text>
+        </View>
+        <View style={s.rMetaColRight}>
+          <Text style={s.lbl}>Invoice date</Text>
+          <Text>{formatDateAU(inv.issueDate)}</Text>
+        </View>
+      </View>
+
+      <View style={s.rMetaRow}>
+        <View style={s.rMetaCol}>
+          {inv.notes ? (
+            <>
+              <Text style={s.lbl}>Description</Text>
+              <Text>{inv.notes}</Text>
+            </>
+          ) : null}
+        </View>
+        <View style={s.rMetaColRight}>
+          <Text style={s.lbl}>Amount due</Text>
+          <Text style={s.rAmountDue}>{formatWithCode(inv.totalCents, inv.currency)}</Text>
+        </View>
+      </View>
+
+      <Text style={s.rSection}>Expense detail</Text>
+
+      <View style={s.rTh} fixed>
+        <Text style={[s.thText, s.rcDate]}>Date</Text>
+        <Text style={[s.thText, s.rcDesc]}>Merchant / description</Text>
+        <Text style={[s.thText, s.rcCat]}>Category</Text>
+        <Text style={[s.thText, s.rcLoc]}>Location</Text>
+        <Text style={[s.thText, s.rcAmt]}>Amount ({inv.currency})</Text>
+      </View>
+
+      {inv.lines.map((l, i) => (
+        <View style={i % 2 === 1 ? s.rTrAlt : s.rTr} key={l.id} wrap={false}>
+          <Text style={s.rcDate}>{l.lineDate ? shortDate(l.lineDate) : ""}</Text>
+          <Text style={s.rcDesc}>{l.description}</Text>
+          <Text style={s.rcCat}>{l.category ?? ""}</Text>
+          <Text style={s.rcLoc}>{l.location ?? ""}</Text>
+          <Text style={s.rcAmt}>{plainAmount(l.amountCents)}</Text>
+        </View>
+      ))}
+
+      <View style={s.rTotalRow} wrap={false}>
+        <Text style={s.rTotalLabel}>TOTAL DUE</Text>
+        <Text style={s.rTotalCcy}>{inv.currency}</Text>
+        <Text style={s.rTotalAmt}>{plainAmount(inv.totalCents)}</Text>
+      </View>
+
+      {(payRows.length > 0 || settings.business_email) && (
+        <View style={s.rPayWrap} wrap={false}>
+          <View style={s.rPayLeft}>
+            <Text style={s.lbl}>Payment instructions</Text>
+            <Text>Payment to: {owner}</Text>
+            <Text>Reference: {inv.number}</Text>
+            {payRows.map((r, i) => (
+              <Text key={i}>{r.label ? `${r.label}: ${r.value}` : r.value}</Text>
+            ))}
+          </View>
+          <View style={s.rPayRight}>
+            <Text style={s.lbl}>Contact</Text>
+            {settings.business_phone ? <Text>{settings.business_phone}</Text> : null}
+            {settings.business_email ? <Text>{settings.business_email}</Text> : null}
+            {settings.business_abn ? <Text>{`ABN: ${settings.business_abn}`}</Text> : null}
+          </View>
+        </View>
+      )}
+
+      {online ? (
+        <View style={s.rOnline} wrap={false}>
+          <Text>Or pay online: {online.value}</Text>
+        </View>
+      ) : null}
+
+      <View style={s.rFoot} fixed>
+        <Text>
+          {`Invoice ${inv.number}  ·  ${owner}`}
+          {settings.business_abn ? `  ·  ABN ${settings.business_abn}` : ""}
+        </Text>
+        <Text render={({ pageNumber }) => `Page ${pageNumber}`} />
+      </View>
+    </Page>
+  );
+}
 
 export type InvoicePdfProps = {
   invoice: InvoiceDetail;
@@ -95,6 +301,9 @@ export function InvoicePdf({ invoice: inv, settings, logo }: InvoicePdfProps) {
       creator={fromName}
       producer={fromName}
     >
+      {isReimbursement ? (
+        <ReimbursementBody invoice={inv} settings={settings} />
+      ) : (
       <Page size="A4" style={s.page}>
         <View style={s.head}>
           <View style={s.headLeft}>
@@ -232,6 +441,7 @@ export function InvoicePdf({ invoice: inv, settings, logo }: InvoicePdfProps) {
           fixed
         />
       </Page>
+      )}
     </Document>
   );
 }

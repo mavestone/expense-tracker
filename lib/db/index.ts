@@ -100,6 +100,7 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   business_abn: "",
   business_email: "",
   business_address: "",
+  business_phone: "",
   business_website: "",
   // Uploaded logo: JSON {driver,key,mime} written by the branding route, or "".
   invoice_logo: "",

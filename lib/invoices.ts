@@ -28,6 +28,10 @@ export type InvoiceLineInput = {
   unitAmountCents: number;
   /** The expense record this line recovers, on a reimbursement. */
   expenseId?: string | null;
+  /** Itemisation, used by the reimbursement layout. */
+  lineDate?: string | null;
+  category?: string | null;
+  location?: string | null;
 };
 
 /**
@@ -201,6 +205,9 @@ export async function createInvoice(input: InvoiceInput) {
         unitAmountCents: l.unitAmountCents,
         amountCents: lineAmountCents(l),
         expenseId: l.expenseId ?? null,
+        lineDate: l.lineDate ?? null,
+        category: l.category ?? null,
+        location: l.location ?? null,
       }))
     );
     await writeAudit(tx, [
@@ -277,6 +284,9 @@ export async function updateInvoice(id: string, input: InvoiceInput) {
         unitAmountCents: l.unitAmountCents,
         amountCents: lineAmountCents(l),
         expenseId: l.expenseId ?? null,
+        lineDate: l.lineDate ?? null,
+        category: l.category ?? null,
+        location: l.location ?? null,
       }))
     );
     await writeAudit(tx, [

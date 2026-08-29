@@ -12,6 +12,7 @@ export type AppSettings = {
   owner_name: string;
   business_abn: string;
   business_email: string;
+  business_phone: string;
   business_address: string;
   business_website: string;
   invoice_logo: string;

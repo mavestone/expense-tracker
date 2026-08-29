@@ -453,6 +453,17 @@ export const invoiceLines = sqliteTable(
     amountCents: integer("amount_cents").notNull(),
 
     /**
+     * Itemisation columns, used by the reimbursement layout. A recovered cost
+     * is evidence rather than a priced service, so the client is shown when it
+     * was incurred, what sort of cost it was and where — the same columns they
+     * would see on a card statement. Null on a services invoice, which prices
+     * work instead and has no use for them.
+     */
+    lineDate: text("line_date"),
+    category: text("category"),
+    location: text("location"),
+
+    /**
      * The expense this line recovers, on a reimbursement invoice. Optional —
      * a cost can be billed on before it has been entered as a record, and
      * some are never entered at all. When it is set it is the only thing

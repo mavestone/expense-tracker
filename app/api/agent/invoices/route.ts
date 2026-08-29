@@ -6,7 +6,16 @@ import { ValidationError } from "@/lib/expenses";
 
 export const runtime = "nodejs";
 
-type LinePayload = { description: string; quantity?: number; amount?: string; amountCents?: number; expenseId?: string };
+type LinePayload = {
+  description: string;
+  quantity?: number;
+  amount?: string;
+  amountCents?: number;
+  expenseId?: string;
+  lineDate?: string;
+  category?: string;
+  location?: string;
+};
 
 function guard(req: Request): Response | null {
   if (!agentApiEnabled()) return json({ error: "Agent API not configured." }, { status: 503 });
@@ -86,6 +95,9 @@ export const POST = api(
         quantityMilli: Math.round((l.quantity ?? 1) * 1000),
         unitAmountCents: cents,
         expenseId: l.expenseId ?? null,
+        lineDate: l.lineDate ?? null,
+        category: l.category ?? null,
+        location: l.location ?? null,
       };
     });
 

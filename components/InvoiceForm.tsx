@@ -17,7 +17,15 @@ type Client = {
   paymentTermsDays: number;
 };
 
-type LineDraft = { description: string; qty: string; unit: string; expenseId?: string | null };
+type LineDraft = {
+  description: string;
+  qty: string;
+  unit: string;
+  expenseId?: string | null;
+  lineDate?: string;
+  category?: string;
+  location?: string;
+};
 
 type Expense = {
   id: string;
@@ -27,6 +35,7 @@ type Expense = {
   originalAmountCents: number;
   originalCurrency: string;
   audAmountCents: number;
+  categoryId: string;
 };
 
 export type InvoiceKind = "services" | "reimbursement";
@@ -52,7 +61,7 @@ function addDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-const EMPTY_LINE: LineDraft = { description: "", qty: "1", unit: "", expenseId: null };
+const EMPTY_LINE: LineDraft = { description: "", qty: "1", unit: "", expenseId: null, lineDate: "", category: "", location: "" };
 
 /**
  * Builder for a new or draft invoice. Totals are recomputed here purely so the
@@ -87,6 +96,7 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQ, setPickerQ] = useState("");
   const [picked, setPicked] = useState<Expense[] | null>(null);
+  const [catNames, setCatNames] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -141,6 +151,13 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
   }, [v.clientId, initial]);
 
   useEffect(() => {
+    if (!pickerOpen || Object.keys(catNames).length) return;
+    apiGet<{ categories: { id: string; name: string }[] }>("/api/meta")
+      .then((m) => setCatNames(Object.fromEntries(m.categories.map((c) => [c.id, c.name]))))
+      .catch(() => setCatNames({}));
+  }, [pickerOpen, catNames]);
+
+  useEffect(() => {
     if (!pickerOpen) return;
     const t = setTimeout(() => {
       const p = new URLSearchParams({ limit: "25", status: "active" });
@@ -165,6 +182,9 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
       qty: "1",
       unit: "",
       expenseId: e.id,
+      lineDate: e.dateIncurred,
+      category: catNames[e.categoryId] ?? "",
+      location: "",
     };
     setV((prev) => {
       const blank = prev.lines.findIndex((l) => !l.description.trim() && !l.unit.trim());
@@ -210,6 +230,9 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
             quantityMilli: Math.round(parseFloat(l.qty || "1") * 1000),
             unitAmountCents: parseMoneyToCents(l.unit || "0") ?? 0,
             expenseId: l.expenseId ?? null,
+            lineDate: l.lineDate || null,
+            category: l.category || null,
+            location: l.location || null,
           })),
       };
       const res = initial?.id
@@ -378,10 +401,20 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
         <table className="lines-table">
           <thead>
             <tr>
-              <th>Description</th>
-              <th className="narrow">Qty</th>
-              <th className="narrow">Unit price ({currencySymbol(v.currency)})</th>
-              <th className="r narrow">Amount</th>
+              {v.kind === "reimbursement" && <th className="narrow">Date</th>}
+              <th>{v.kind === "reimbursement" ? "Merchant / description" : "Description"}</th>
+              {v.kind === "reimbursement" ? (
+                <>
+                  <th className="narrow">Category</th>
+                  <th className="narrow">Location</th>
+                </>
+              ) : (
+                <th className="narrow">Qty</th>
+              )}
+              <th className="narrow">
+                {v.kind === "reimbursement" ? `Amount (${v.currency})` : `Unit price (${currencySymbol(v.currency)})`}
+              </th>
+              {v.kind !== "reimbursement" && <th className="r narrow">Amount</th>}
               <th />
             </tr>
           </thead>
@@ -392,20 +425,48 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
               const amt = Number.isFinite(q) ? Math.round((q * u) / 1000) : 0;
               return (
                 <tr key={i}>
+                  {v.kind === "reimbursement" && (
+                    <td className="narrow">
+                      <input
+                        type="date"
+                        value={l.lineDate ?? ""}
+                        onChange={(e) => setLine(i, { lineDate: e.target.value })}
+                      />
+                    </td>
+                  )}
                   <td>
                     <input
                       value={l.description}
-                      placeholder={v.kind === "reimbursement" ? "easyJet — return flight, Geneva" : "20 finished reels — edit, grade, music mix"}
+                      placeholder={v.kind === "reimbursement" ? "easyJet — flight, London to Geneva" : "20 finished reels — edit, grade, music mix"}
                       onChange={(e) => setLine(i, { description: e.target.value })}
                     />
                   </td>
-                  <td className="narrow">
-                    <input value={l.qty} inputMode="decimal" onChange={(e) => setLine(i, { qty: e.target.value })} />
-                  </td>
+                  {v.kind === "reimbursement" ? (
+                    <>
+                      <td className="narrow">
+                        <input
+                          value={l.category ?? ""}
+                          placeholder="Transport - flight"
+                          onChange={(e) => setLine(i, { category: e.target.value })}
+                        />
+                      </td>
+                      <td className="narrow">
+                        <input
+                          value={l.location ?? ""}
+                          placeholder="Online"
+                          onChange={(e) => setLine(i, { location: e.target.value })}
+                        />
+                      </td>
+                    </>
+                  ) : (
+                    <td className="narrow">
+                      <input value={l.qty} inputMode="decimal" onChange={(e) => setLine(i, { qty: e.target.value })} />
+                    </td>
+                  )}
                   <td className="narrow">
                     <input value={l.unit} inputMode="decimal" placeholder="0.00" onChange={(e) => setLine(i, { unit: e.target.value })} />
                   </td>
-                  <td className="r nowrap">{formatCurrency(amt, v.currency)}</td>
+                  {v.kind !== "reimbursement" && <td className="r nowrap">{formatCurrency(amt, v.currency)}</td>}
                   <td className="act">
                     {v.lines.length > 1 && (
                       <button

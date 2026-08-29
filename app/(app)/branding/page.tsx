@@ -16,6 +16,7 @@ const TEXT_FIELDS: { key: string; label: string; hint?: string; rows?: number; p
   { key: "business_name", label: "Business name", placeholder: "Mavestone" },
   { key: "business_abn", label: "ABN", placeholder: "97 834 141 404" },
   { key: "business_email", label: "Email" },
+  { key: "business_phone", label: "Phone" },
   { key: "business_website", label: "Website" },
   { key: "business_address", label: "Address", rows: 3 },
 ];

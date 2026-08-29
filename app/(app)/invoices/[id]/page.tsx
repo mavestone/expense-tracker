@@ -10,7 +10,7 @@ import InvoiceForm, { type InvoiceFormValue } from "@/components/InvoiceForm";
 import { useDialog } from "@/components/Dialog";
 import { useToast } from "@/components/Toast";
 
-type Line = { id: string; description: string; quantityMilli: number; unitAmountCents: number; amountCents: number; expenseId: string | null };
+type Line = { id: string; description: string; quantityMilli: number; unitAmountCents: number; amountCents: number; expenseId: string | null; lineDate: string | null; category: string | null; location: string | null };
 type Invoice = {
   id: string;
   number: string;
@@ -83,6 +83,9 @@ export default function InvoiceDetailPage() {
         qty: String(l.quantityMilli / 1000),
         unit: (l.unitAmountCents / 100).toFixed(2),
         expenseId: l.expenseId ?? null,
+        lineDate: l.lineDate ?? "",
+        category: l.category ?? "",
+        location: l.location ?? "",
       })),
     };
     return (
