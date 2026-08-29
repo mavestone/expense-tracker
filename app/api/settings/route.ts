@@ -28,7 +28,6 @@ const EDITABLE_SETTINGS = new Set([
   "owner_name",
   "business_abn",
   "business_email",
-  "business_phone",
   "business_address",
   "business_website",
   "invoice_terms_default",

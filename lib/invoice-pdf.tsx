@@ -20,6 +20,7 @@ import type { AppSettings } from "./settings";
 import { payToFor } from "./settings";
 import { formatWithCode, formatAmount } from "./money";
 import { formatDateAU } from "./fy";
+import { shortDate, longDate, periodLabel, plainAmount, isUrl } from "./invoice-format";
 import { parsePaymentBlock } from "./payment-block";
 
 const INK = "#111111";
@@ -74,8 +75,9 @@ const s = StyleSheet.create({
   // A recovered cost is evidence, not a priced service, so this reads as a
   // statement of what was spent: one row per charge, with the date, category
   // and place the client would recognise from their own records.
+  rLogo: { maxWidth: 132, maxHeight: 46, marginBottom: 10, objectFit: "contain" },
   rTitle: { fontSize: 30, fontFamily: "Helvetica-Bold", color: "#1f2a44", letterSpacing: -0.5 },
-  rRule: { borderBottomWidth: 1.6, borderBottomColor: "#1f2a44", marginTop: 16, marginBottom: 20 },
+  rRule: { borderBottomWidth: 1.6, borderBottomColor: "#1f2a44", marginTop: 22, marginBottom: 20 },
   rMetaRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
   rMetaCol: { width: "52%" },
   rMetaColRight: { width: "44%", textAlign: "right" },
@@ -104,62 +106,20 @@ const s = StyleSheet.create({
 });
 
 
-/** "2026-08-04" -> "04 Aug". The year lives in the period line, not on every row. */
-function shortDate(iso: string): string {
-  const [, m, d] = iso.split("-");
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${d} ${months[Number(m) - 1] ?? ""}`.trim();
-}
-
-const LONG_MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-/**
- * The span the costs were incurred over, collapsed as far as it honestly can
- * be: "4 – 20 August 2026" inside one month, "4 August – 3 September 2026"
- * across two. A single date prints on its own rather than as a range of one.
- */
-function longDate(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${Number(d)} ${LONG_MONTHS[Number(m) - 1] ?? ""} ${y}`.replace(/\s+/g, " ").trim();
-}
-
-function periodLabel(dates: string[]): string {
-  const sorted = [...dates].filter(Boolean).sort();
-  if (sorted.length === 0) return "";
-  const one = (iso: string, withMonth = true, withYear = true) => {
-    const [y, m, d] = iso.split("-");
-    return [String(Number(d)), withMonth ? LONG_MONTHS[Number(m) - 1] : null, withYear ? y : null]
-      .filter(Boolean)
-      .join(" ");
-  };
-  const a = sorted[0];
-  const b = sorted[sorted.length - 1];
-  if (a === b) return one(a);
-  const [ay, am] = a.split("-");
-  const [by, bm] = b.split("-");
-  if (ay === by && am === bm) return `${one(a, false, false)} – ${one(b)}`;
-  if (ay === by) return `${one(a, true, false)} – ${one(b)}`;
-  return `${one(a)} – ${one(b)}`;
-}
-
-/** Bare decimal — the currency is stated once, in the column head and total. */
-function plainAmount(cents: number): string {
-  return (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function isUrl(v: string): boolean {
-  return /^https?:\/\//i.test(v.trim());
-}
-
 /**
  * The reimbursement document: an itemised statement of costs carried for the
  * client. No terms block and no explanatory footnote — the rows are the
  * explanation, and anything else just invites the client to read past them.
  */
-function ReimbursementBody({ invoice: inv, settings }: { invoice: InvoiceDetail; settings: AppSettings }) {
+function ReimbursementBody({
+  invoice: inv,
+  settings,
+  logo,
+}: {
+  invoice: InvoiceDetail;
+  settings: AppSettings;
+  logo?: { data: Buffer; format: "png" | "jpg" } | null;
+}) {
   const c = inv.client;
   const payTo = payToFor(settings, inv.currency);
   const allRows = payTo ? parsePaymentBlock(payTo) : [];
@@ -172,13 +132,14 @@ function ReimbursementBody({ invoice: inv, settings }: { invoice: InvoiceDetail;
     <Page size="A4" style={s.page}>
       <View style={s.head}>
         <View style={s.headLeft}>
+          {logo ? <Image style={s.rLogo} src={{ data: logo.data, format: logo.format }} /> : null}
           <Text style={s.rTitle}>INVOICE</Text>
         </View>
         <View style={s.headRight}>
           <Text style={s.strong}>{owner}</Text>
           {settings.business_abn ? <Text>ABN {settings.business_abn}</Text> : null}
           {settings.business_email ? <Text>{settings.business_email}</Text> : null}
-          {settings.business_phone ? <Text>{settings.business_phone}</Text> : null}
+          {settings.business_website ? <Text>{settings.business_website}</Text> : null}
         </View>
       </View>
       <View style={s.rRule} />
@@ -258,8 +219,8 @@ function ReimbursementBody({ invoice: inv, settings }: { invoice: InvoiceDetail;
           </View>
           <View style={s.rPayRight}>
             <Text style={s.lbl}>Contact</Text>
-            {settings.business_phone ? <Text>{settings.business_phone}</Text> : null}
             {settings.business_email ? <Text>{settings.business_email}</Text> : null}
+            {settings.business_website ? <Text>{settings.business_website}</Text> : null}
             {settings.business_abn ? <Text>{`ABN: ${settings.business_abn}`}</Text> : null}
           </View>
         </View>
@@ -313,7 +274,7 @@ export function InvoicePdf({ invoice: inv, settings, logo }: InvoicePdfProps) {
       producer={fromName}
     >
       {isReimbursement ? (
-        <ReimbursementBody invoice={inv} settings={settings} />
+        <ReimbursementBody invoice={inv} settings={settings} logo={logo} />
       ) : (
       <Page size="A4" style={s.page}>
         <View style={s.head}>

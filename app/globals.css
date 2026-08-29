@@ -1480,3 +1480,38 @@ h1, h2, h3,
   .pk-sup { grid-area: sup; } .pk-amt { grid-area: amt; } .pk-date { grid-area: date; }
   .pickerlist li .btn { grid-area: btn; justify-self: end; }
 }
+
+/* ── Reimbursement document ───────────────────────────────────────────
+   A statement of costs carried, not a priced quote for work, so it reads
+   as a ledger extract: wordmark, the span it covers, then one row per
+   charge. Mirrors lib/invoice-pdf.tsx — the printable page and the PDF
+   are separate renderings and have to be changed together. */
+.doc.reimb .reimb-title {
+  font-family: var(--display); font-size: 34px; font-weight: 700;
+  letter-spacing: -0.02em; color: #1f2a44; line-height: 1;
+}
+.doc.reimb .doc-meta { text-align: right; }
+.reimb-rule { border-bottom: 1.6px solid #1f2a44; margin: 18px 0 22px; }
+.reimb-meta { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.reimb-meta .r { text-align: right; }
+.reimb-due { font-family: var(--display); font-size: 25px; font-weight: 700; letter-spacing: -0.02em; }
+.reimb-section { font-size: 15px; font-weight: 700; margin: 22px 0 10px; }
+
+.reimb-items th { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+/* Zebra rows: the eye tracks a date to an amount across five columns. */
+/* Set on the cells, not the row: a `tr` background can leave the last cell
+   unpainted once the table collapses its borders. */
+.doc table.items.reimb-items td { padding: 11px 10px; border-bottom: 0; }
+.doc table.items.reimb-items th { padding: 0 10px 7px; border-bottom: 1px solid #cfd4dc; }
+.reimb-items tbody tr:nth-child(even) td { background: #f4f4f2; }
+.reimb-items tbody tr.reimb-total td { background: none; font-weight: 700; }
+.reimb-items tbody tr.reimb-total td { border-top: 1px solid var(--line); padding-top: 14px; font-size: 15px; }
+
+.reimb-pay { display: flex; justify-content: space-between; gap: 24px; background: #f4f4f2; padding: 16px 18px; margin-top: 22px; }
+.reimb-pay .r { text-align: right; }
+.reimb-online { background: #ededea; padding: 11px 18px; }
+
+@media (max-width: 620px) {
+  .reimb-meta, .reimb-pay { flex-direction: column; gap: 10px; }
+  .reimb-meta .r, .reimb-pay .r { text-align: left; }
+}

@@ -5,6 +5,8 @@ import { getSettings, payToFor } from "@/lib/settings";
 import { formatWithCode, formatAmount } from "@/lib/money";
 import { formatDateAU } from "@/lib/fy";
 import PaymentBlock, { linkify } from "@/components/PaymentBlock";
+import { parsePaymentBlock } from "@/lib/payment-block";
+import { shortDate, longDate, periodLabel, plainAmount, isUrl } from "@/lib/invoice-format";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,6 +26,142 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   const payTo = payToFor(s, inv.currency);
   const terms = inv.terms || s.invoice_terms_default;
   const fromName = s.business_name || "Mavestone";
+  const owner = s.owner_name || fromName;
+
+  // Reimbursements are a statement of costs carried, not a priced quote for
+  // work, so they get their own document. This mirrors the PDF layout — the
+  // two renderings are separate by design and have to be changed together.
+  if (inv.kind === "reimbursement") {
+    return (
+      <>
+        <div className="btnrow noprint mb2">
+          <Link href={`/invoices/${inv.id}`} className="btn ghost small">← Back</Link>
+          <a href={`/api/invoices/${inv.id}/pdf`} className="btn small">⬇ Download PDF</a>
+          <span className="muted small">
+            This is a preview — the download is a generated PDF, not a screenshot of this page.
+            {inv.status === "draft" && <b> This invoice is still a draft.</b>}
+          </span>
+        </div>
+
+        <article className="doc reimb">
+          <div className="doc-head">
+            <div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {s.invoice_logo ? <img src="/api/branding/logo" alt={fromName} className="doc-logo" /> : null}
+              <div className="reimb-title">INVOICE</div>
+            </div>
+            <div className="doc-meta">
+              <div style={{ fontWeight: 700 }}>{owner}</div>
+              {s.business_abn && <div>ABN {s.business_abn}</div>}
+              {s.business_email && <div>{s.business_email}</div>}
+              {s.business_website && <div>{s.business_website}</div>}
+            </div>
+          </div>
+
+          <div className="reimb-rule" />
+
+          <div className="reimb-meta">
+            <div>
+              <div className="lbl">Bill to</div>
+              <div style={{ fontWeight: 700 }}>{c.name}</div>
+            </div>
+            <div className="r">
+              <div className="lbl">Invoice number</div>
+              <div style={{ fontWeight: 700 }}>{inv.number}</div>
+            </div>
+          </div>
+
+          <div className="reimb-meta">
+            <div>
+              <div className="lbl">Period</div>
+              <div>{periodLabel(inv.lines.map((l) => l.lineDate ?? "").filter(Boolean)) || longDate(inv.issueDate)}</div>
+            </div>
+            <div className="r">
+              <div className="lbl">Invoice date</div>
+              <div>{longDate(inv.issueDate)}</div>
+            </div>
+          </div>
+
+          <div className="reimb-meta">
+            <div>
+              {inv.notes && (
+                <>
+                  <div className="lbl">Description</div>
+                  <div>{inv.notes}</div>
+                </>
+              )}
+            </div>
+            <div className="r">
+              <div className="lbl">Amount due</div>
+              <div className="reimb-due">{formatWithCode(inv.totalCents, inv.currency)}</div>
+            </div>
+          </div>
+
+          <h2 className="reimb-section">Expense detail</h2>
+
+          <div className="itemswrap">
+            <table className="items reimb-items">
+              <thead>
+                <tr>
+                  <th style={{ width: 74 }}>Date</th>
+                  <th>Merchant / description</th>
+                  <th style={{ width: 130 }}>Category</th>
+                  <th style={{ width: 120 }}>Location</th>
+                  <th className="r" style={{ width: 110 }}>Amount ({inv.currency})</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inv.lines.map((l) => (
+                  <tr key={l.id}>
+                    <td className="nowrap">{l.lineDate ? shortDate(l.lineDate) : ""}</td>
+                    <td>{l.description}</td>
+                    <td>{l.category ?? ""}</td>
+                    <td>{l.location ?? ""}</td>
+                    <td className="r">{plainAmount(l.amountCents)}</td>
+                  </tr>
+                ))}
+                <tr className="reimb-total">
+                  <td colSpan={3}>TOTAL DUE</td>
+                  <td className="r">{inv.currency}</td>
+                  <td className="r">{plainAmount(inv.totalCents)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {payTo && (
+            <div className="reimb-pay">
+              <div>
+                <div className="lbl">Payment instructions</div>
+                <div>Payment to: {owner}</div>
+                <div>Reference: {inv.number}</div>
+                {parsePaymentBlock(payTo)
+                  .filter((r) => !isUrl(r.value))
+                  .map((r, i) => (
+                    <div key={i}>{r.label ? `${r.label}: ${r.value}` : r.value}</div>
+                  ))}
+              </div>
+              <div className="r">
+                <div className="lbl">Contact</div>
+                {s.business_email && <div>{s.business_email}</div>}
+                {s.business_website && <div>{s.business_website}</div>}
+                {s.business_abn && <div>ABN: {s.business_abn}</div>}
+              </div>
+            </div>
+          )}
+
+          {payTo &&
+            parsePaymentBlock(payTo)
+              .filter((r) => isUrl(r.value))
+              .map((r, i) => (
+                <div className="reimb-online" key={i}>
+                  Or pay online: {linkify(r.value)}
+                </div>
+              ))}
+        </article>
+      </>
+    );
+  }
 
   return (
     <>
