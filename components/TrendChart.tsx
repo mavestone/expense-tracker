@@ -58,6 +58,16 @@ export default function TrendChart({ months }: { months: TrendMonth[] }) {
   const [active, setActive] = useState<Row | null>(null);
   const [openMonth, setOpenMonth] = useState<string | null>(null);
 
+  /**
+   * Chart-level onClick only fires once recharts has an active index, which is
+   * set by mouse movement — so a first click with no hover before it does
+   * nothing, and a tap on a phone has no hover at all. Opening from the bar
+   * itself as well makes the tap work the first time.
+   */
+  function openFor(r: Row | null | undefined) {
+    if (r && (r.income > 0 || r.expense > 0)) setOpenMonth(r.key);
+  }
+
   const { data, hasData, totals, peak } = useMemo(() => {
     const data: Row[] = months.map((m) => ({
       ...m,
@@ -133,8 +143,7 @@ export default function TrendChart({ months }: { months: TrendMonth[] }) {
               // open an empty panel.
               onClick={(st) => {
                 const i = typeof st?.activeIndex === "number" ? st.activeIndex : Number(st?.activeIndex);
-                const r = Number.isInteger(i) && i >= 0 && i < data.length ? data[i] : null;
-                if (r && (r.income > 0 || r.expense > 0)) setOpenMonth(r.key);
+                openFor(Number.isInteger(i) && i >= 0 && i < data.length ? data[i] : null);
               }}
               style={{ cursor: "pointer" }}
             >
@@ -167,12 +176,12 @@ export default function TrendChart({ months }: { months: TrendMonth[] }) {
               {/* A month with nothing in it gets no bar at all. The line chart
                   this replaced drew future months as zero, which read as income
                   collapsing rather than as a year that has not happened yet. */}
-              <Bar dataKey="income" radius={[5, 5, 2, 2]} isAnimationActive={false} maxBarSize={26}>
+              <Bar dataKey="income" radius={[5, 5, 2, 2]} isAnimationActive={false} maxBarSize={26} onClick={(_, i) => openFor(data[i])}>
                 {data.map((r) => (
                   <Cell key={r.key} fill="var(--accent)" fillOpacity={r.income > 0 ? 1 : 0} />
                 ))}
               </Bar>
-              <Bar dataKey="expense" radius={[5, 5, 2, 2]} isAnimationActive={false} maxBarSize={26}>
+              <Bar dataKey="expense" radius={[5, 5, 2, 2]} isAnimationActive={false} maxBarSize={26} onClick={(_, i) => openFor(data[i])}>
                 {data.map((r) => (
                   <Cell key={r.key} fill="var(--warn)" fillOpacity={r.expense > 0 ? 0.85 : 0} />
                 ))}

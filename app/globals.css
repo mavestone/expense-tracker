@@ -1572,7 +1572,7 @@ h1, h2, h3,
 .mb-tot .k { font-size: 10.5px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); }
 .mb-tot .v { font-family: var(--display); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .mb-tot .v.income { color: var(--accent-strong); }
-.mb-tot .v.expense { color: var(--warn); }
+.mb-tot .v.expense { color: var(--danger-ink); }
 
 .mb-sec { font-size: 13px; font-weight: 700; margin: 16px 0 6px; display: flex; gap: 7px; align-items: baseline; }
 .mb-scroll { overflow-y: auto; margin-right: -4px; padding-right: 4px; }
@@ -1589,6 +1589,10 @@ h1, h2, h3,
 .mb-main:hover b { text-decoration: underline; }
 .mb-tag { display: flex; gap: 6px; flex: none; }
 .mb-amt { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-variant-numeric: tabular-nums; flex: none; }
+/* Direction of money, not status: out is red, received is green, still owed
+   stays neutral because it has not landed. */
+.mb-amt.expense b { color: var(--danger-ink); }
+.mb-amt.paid b { color: var(--ok-ink); }
 
 @media (max-width: 620px) {
   .mb-tot { grid-template-columns: 1fr; }
@@ -1596,3 +1600,10 @@ h1, h2, h3,
   .mb-main { grid-area: main; } .mb-amt { grid-area: amt; }
   .mb-date { grid-area: date; } .mb-tag { grid-area: tag; justify-content: flex-end; }
 }
+
+/* The section switch centres in the bar: brand and actions take equal space
+   either side of it, so the midpoint is the bar's midpoint and not wherever
+   the wordmark happens to end. */
+.topbar .brand { flex: 1 1 0; min-width: 0; }
+.topbar .actions { flex: 1 1 0; justify-content: flex-end; }
+.topbar .sectionswitch { flex: none; }

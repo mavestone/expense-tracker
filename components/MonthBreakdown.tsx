@@ -35,10 +35,18 @@ function monthTitle(key: string): string {
   return `${MONTHS[m - 1] ?? key} ${y}`;
 }
 
-/** A foreign charge is only recognisable as the one on the card in its own currency. */
-function Amounts({ r, aud }: { r: Row; aud: number }) {
+/**
+ * A foreign charge is only recognisable as the one on the card in its own
+ * currency, so the original rides along under the AUD.
+ *
+ * `tone` is money direction, not status: out is red, money actually received
+ * is green, and income still owed stays neutral because it is not in the bank
+ * yet. Scoped to this panel — red means "needs attention" everywhere else in
+ * the app, and that meaning should not be diluted.
+ */
+function Amounts({ r, aud, tone }: { r: Row; aud: number; tone: "expense" | "paid" | "unpaid" }) {
   return (
-    <span className="mb-amt">
+    <span className={`mb-amt ${tone}`}>
       <b>{formatAUD(aud)}</b>
       {r.originalCurrency !== "AUD" && (
         <span className="muted small">{formatCurrency(r.originalAmountCents, r.originalCurrency)}</span>
@@ -113,7 +121,7 @@ export default function MonthBreakdown({ month, onClose }: { month: string; onCl
                       {r.invoiceRef && <span className="pill chip">{r.invoiceRef}</span>}
                       {!r.paid && <span className="pill overdue">unpaid</span>}
                     </span>
-                    <Amounts r={r} aud={r.audCents} />
+                    <Amounts r={r} aud={r.audCents} tone={r.paid ? "paid" : "unpaid"} />
                   </li>
                 ))}
               </ul>
@@ -132,7 +140,7 @@ export default function MonthBreakdown({ month, onClose }: { month: string; onCl
                       <span className="muted small">{r.description}</span>
                     </Link>
                     <span className="mb-tag"><span className="pill chip">{r.category}</span></span>
-                    <Amounts r={r} aud={r.deductibleAudCents} />
+                    <Amounts r={r} aud={r.deductibleAudCents} tone="expense" />
                   </li>
                 ))}
               </ul>
