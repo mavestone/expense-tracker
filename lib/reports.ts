@@ -1,9 +1,9 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, schema } from "./db";
 import { applyBp } from "./money";
 import { fyQuarter, quarterLabel, type BasQuarter } from "./fy";
 import { getSettings } from "./settings";
-import { receiptCountMap } from "./expenses";
+import { receiptCountMap, ValidationError } from "./expenses";
 import { explainTreatment, businessPortionCents, balancingAdjustment } from "./depreciation";
 
 /** Active (confirmed, non-void) expenses for an FY. Reports never include drafts or voids. */
@@ -307,5 +307,92 @@ export async function monthlyTrend(fy: string) {
       incomeCents: months.reduce((s, m) => s + m.incomeCents, 0),
       expenseCents: months.reduce((s, m) => s + m.expenseCents, 0),
     },
+  };
+}
+
+
+/**
+ * Everything that happened in one calendar month, both sides.
+ *
+ * The trend chart shows a month as two bars; this is what those bars are made
+ * of. Deliberately a single call returning both ledgers — the question "what
+ * was August?" is one question, and answering it with two round trips invites
+ * the two halves to disagree about which records were in scope.
+ *
+ * Amounts are AUD, because the point is to reconcile against a bar on an AUD
+ * chart. The original currency comes along so a foreign charge is still
+ * recognisable as the one on the card.
+ */
+export async function monthBreakdown(month: string) {
+  const d = await db();
+  const [y, m] = month.split("-").map(Number);
+  if (!y || !m || m < 1 || m > 12) throw new ValidationError(["Month must be YYYY-MM."]);
+  const start = `${month}-01`;
+  const end = `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
+
+  const [expenseRows, incomeRows, categories] = await Promise.all([
+    d
+      .select()
+      .from(schema.expenses)
+      .where(
+        and(
+          gte(schema.expenses.dateIncurred, start),
+          lte(schema.expenses.dateIncurred, end),
+          inArray(schema.expenses.status, ["active"])
+        )
+      )
+      .orderBy(desc(schema.expenses.dateIncurred)),
+    d
+      .select()
+      .from(schema.income)
+      .where(
+        and(
+          gte(schema.income.dateEarned, start),
+          lte(schema.income.dateEarned, end),
+          inArray(schema.income.status, ["active"])
+        )
+      )
+      .orderBy(desc(schema.income.dateEarned)),
+    d.select().from(schema.categories),
+  ]);
+
+  const catName = new Map(categories.map((c) => [c.id, c.name]));
+
+  const expenses = expenseRows.map((e) => ({
+    id: e.id,
+    date: e.dateIncurred,
+    name: e.supplierName,
+    description: e.description,
+    category: catName.get(e.categoryId) ?? "Uncategorised",
+    audCents: e.audAmountCents,
+    // The chart plots deductible spend, so this is the figure the bar is built
+    // from — showing the gross here would not add up to the bar.
+    deductibleAudCents: e.deductibleAudCents,
+    originalAmountCents: e.originalAmountCents,
+    originalCurrency: e.originalCurrency,
+  }));
+
+  const income = incomeRows.map((r) => ({
+    id: r.id,
+    date: r.dateEarned,
+    name: r.clientName,
+    description: r.description,
+    invoiceRef: r.invoiceRef,
+    paid: Boolean(r.datePaid),
+    audCents: r.audAmountCents,
+    originalAmountCents: r.originalAmountCents,
+    originalCurrency: r.originalCurrency,
+  }));
+
+  const incomeCents = income.reduce((s, r) => s + r.audCents, 0);
+  const expenseCents = expenses.reduce((s, r) => s + r.deductibleAudCents, 0);
+
+  return {
+    month,
+    start,
+    end,
+    income,
+    expenses,
+    totals: { incomeCents, expenseCents, netCents: incomeCents - expenseCents },
   };
 }

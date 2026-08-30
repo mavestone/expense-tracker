@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { formatAUD } from "@/lib/money";
+import MonthBreakdown from "@/components/MonthBreakdown";
 
 export type TrendMonth = {
   key: string;
@@ -55,6 +56,7 @@ function axisTick(v: number): string {
  */
 export default function TrendChart({ months }: { months: TrendMonth[] }) {
   const [active, setActive] = useState<Row | null>(null);
+  const [openMonth, setOpenMonth] = useState<string | null>(null);
 
   const { data, hasData, totals, peak } = useMemo(() => {
     const data: Row[] = months.map((m) => ({
@@ -82,6 +84,7 @@ export default function TrendChart({ months }: { months: TrendMonth[] }) {
 
   return (
     <div className="trend">
+      {openMonth && <MonthBreakdown month={openMonth} onClose={() => setOpenMonth(null)} />}
       <div className="trend-head">
         <div>
           <div className="trend-label">Net for the year</div>
@@ -126,6 +129,14 @@ export default function TrendChart({ months }: { months: TrendMonth[] }) {
                 setActive(Number.isInteger(i) && i >= 0 && i < data.length ? data[i] : null);
               }}
               onMouseLeave={() => setActive(null)}
+              // A month with nothing in it has nothing to show, so it does not
+              // open an empty panel.
+              onClick={(st) => {
+                const i = typeof st?.activeIndex === "number" ? st.activeIndex : Number(st?.activeIndex);
+                const r = Number.isInteger(i) && i >= 0 && i < data.length ? data[i] : null;
+                if (r && (r.income > 0 || r.expense > 0)) setOpenMonth(r.key);
+              }}
+              style={{ cursor: "pointer" }}
             >
               <CartesianGrid stroke="var(--line)" strokeDasharray="3 7" vertical={false} />
 
