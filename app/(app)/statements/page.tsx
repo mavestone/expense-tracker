@@ -44,6 +44,9 @@ const STATUS_TABS = [
 
 const NOT_SPENDING_REASONS = [
   "Own transfer between my accounts",
+  // Wise charges a fee on every conversion and transfer, so these arrive in
+  // volume and are the commonest thing in this bucket after own transfers.
+  "Bank fees",
   "Card repayment",
   "Reimbursement",
   "Refunded / reversed",
