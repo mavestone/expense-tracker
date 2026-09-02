@@ -36,6 +36,7 @@ export type ActionData = {
     count: number; totalCents: number; thresholdCents: number;
     first: { id: string; supplier: string; date: string; audCents: number; gstCents: number };
   } | null;
+  remindersEnabled: number;
   allClear: boolean;
 };
 
@@ -46,6 +47,44 @@ export type ActionData = {
  * weeks every invoice is paid and every line is filed. It gets a designed
  * state rather than an absence.
  */
+/**
+ * What each check says when it has nothing to report.
+ *
+ * A blank slot cannot distinguish "checked, all clear" from "never ran", and
+ * those are very different things — the statement reminder in particular is
+ * silent both when every month is in and when nothing is being watched at all.
+ */
+function restingChecks(data: ActionData) {
+  const out: { key: string; label: string; detail: string }[] = [];
+
+  if (!data.unpaid) out.push({ key: "unpaid", label: "Invoices", detail: "Everything raised has been paid" });
+
+  if (!data.triage || data.triage.undecided === 0) {
+    out.push({
+      key: "triage",
+      label: "Statement lines",
+      detail: data.triage
+        ? `All ${data.triage.total.toLocaleString()} decided`
+        : "None loaded for this year yet",
+    });
+  }
+
+  if (!data.statementDue) {
+    out.push({
+      key: "statements",
+      label: "Statements",
+      detail:
+        data.remindersEnabled > 0
+          ? "Up to date, nothing outstanding"
+          : "Monthly reminder is off — nothing is being chased",
+    });
+  }
+
+  if (!data.blockedGst) out.push({ key: "gst", label: "GST credits", detail: "No credit at risk" });
+
+  return out;
+}
+
 export default function ActionStack({ data, nextBas }: { data: ActionData; nextBas?: string }) {
   if (data.allClear) {
     return (
@@ -64,8 +103,16 @@ export default function ActionStack({ data, nextBas }: { data: ActionData; nextB
     );
   }
 
+  const resting = restingChecks(data);
+  const active =
+    (data.unpaid ? 1 : 0) +
+    (data.triage && data.triage.undecided > 0 ? 1 : 0) +
+    (data.statementDue ? 1 : 0) +
+    (data.blockedGst ? 1 : 0);
+  const slots = active + (resting.length > 0 ? 1 : 0);
+
   return (
-    <div className="actionstack">
+    <div className={`actionstack slots-${Math.min(slots, 3)}`}>
       {data.unpaid && (
         <article className="card act danger">
           <div className="act-label"><AlertTriangle size={14} />
@@ -174,6 +221,20 @@ export default function ActionStack({ data, nextBas }: { data: ActionData; nextB
               <Camera size={16} /> Attach tax invoice
             </Link>
           </div>
+        </article>
+      )}
+
+      {resting.length > 0 && (
+        <article className="card act resting">
+          <div className="act-label"><Check size={14} /> Nothing else outstanding</div>
+          <ul className="restlist">
+            {resting.map((r) => (
+              <li key={r.key}>
+                <b>{r.label}</b>
+                <span>{r.detail}</span>
+              </li>
+            ))}
+          </ul>
         </article>
       )}
     </div>

@@ -1371,11 +1371,11 @@ h1, h2, h3,
    into the loudest object on the screen. */
 @media (min-width: 861px) {
   .actionstack { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  /* A lone card takes the same column as the FY card directly beneath it, so
-     the two left edges and right edges line up rather than nearly lining up. */
-  .actionstack:has(> .act:only-child) { grid-template-columns: 1.35fr 1fr; }
-  .actionstack:has(> .act:only-child) > .act { grid-column: 1; }
-  .actionstack:has(> .act:first-child:nth-last-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* One live card sits in the same column as the FY card directly beneath it,
+     so their edges line up rather than nearly lining up. The count comes from
+     the component, which knows it, instead of being inferred with :has. */
+  .actionstack.slots-2 { grid-template-columns: 1.35fr 1fr; }
+  .actionstack.slots-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* ── Financial year ───────────────────────────────────────────────────
@@ -1691,3 +1691,15 @@ h1, h2, h3,
 .us-right b { font-size: 13px; }
 .us-late { font-size: 11px; font-weight: 700; color: var(--danger-ink); }
 .us-due { font-size: 11px; color: var(--ink-3); }
+
+
+/* ── Checks with nothing to report ────────────────────────────────────
+   A blank slot cannot tell you whether a check passed or never ran. This
+   says which, quietly — it is the absence of work, so it should never
+   compete with the cards that are asking for some. */
+.act.resting { border-color: var(--line); border-top-color: var(--line); background: var(--surface-2); }
+.act.resting .act-label { color: var(--ok-ink); }
+.restlist { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.restlist li { display: flex; flex-direction: column; gap: 1px; }
+.restlist b { font-size: 12.5px; font-weight: 650; color: var(--ink-2); }
+.restlist span { font-size: 12.5px; color: var(--ink-3); line-height: 1.4; }

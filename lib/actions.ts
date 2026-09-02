@@ -85,6 +85,10 @@ export async function actionStack(fy: string) {
   // Only for accounts set to remind monthly, and only for months that have
   // actually ended — the 1st is when last month becomes uploadable.
   const due = await statementsDue(today);
+  // Whether anything is being chased at all. "No statement outstanding" and
+  // "nobody is watching" look identical from the outside and are not the same.
+  const accounts = await d.select().from(schema.statementAccounts);
+  const remindersEnabled = accounts.filter((a) => a.remindMonthly).length;
   const statementDue = due.length
     ? {
         count: due.reduce((n, a) => n + a.months.length, 0),
@@ -131,6 +135,7 @@ export async function actionStack(fy: string) {
     unpaid,
     triage,
     statementDue,
+    remindersEnabled,
     blockedGst,
     /** True when nothing is outstanding — the screen's most common state. */
     allClear: !unpaid && !blockedGst && !statementDue && !(triage && triage.undecided > 0),
