@@ -22,6 +22,10 @@ export const GET = api(async (req) => {
     totals,
     hasMore,
     months: await transactionMonths(p.get("fy") || undefined, p.get("accountId") || undefined),
-    progress: await reviewProgress({ fy: p.get("fy") || undefined, accountId: p.get("accountId") || undefined }),
+    progress: await reviewProgress({
+      fy: p.get("fy") || undefined,
+      month: p.get("month") || undefined,
+      accountId: p.get("accountId") || undefined,
+    }),
   });
 });

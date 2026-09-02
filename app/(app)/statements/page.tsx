@@ -405,55 +405,6 @@ export default function StatementsPage() {
                       page.totals.count
                     ).toLocaleString()}`}
                 </div>
-                {page.totals.count > PAGE_SIZE && (
-                  <div className="pager">
-                    <button
-                      type="button"
-                      className="btn ghost small"
-                      disabled={pageIndex === 0}
-                      onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
-                    >
-                      ← Previous
-                    </button>
-                    <span className="muted small">
-                      Page {pageIndex + 1} of {Math.max(1, Math.ceil(page.totals.count / pageSize))}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn ghost small"
-                      disabled={!page.hasMore}
-                      onClick={() => setPageIndex((i) => i + 1)}
-                    >
-                      Next →
-                    </button>
-                    {pageSize === PAGE_SIZE ? (
-                      /* Paging keeps the table quick; sometimes you want the
-                         whole month on one screen to sweep it in one go. */
-                      <button
-                        type="button"
-                        className="btn ghost small"
-                        onClick={() => {
-                          setPageSize(Math.min(page.totals.count, 1000));
-                          setPageIndex(0);
-                        }}
-                      >
-                        Load all {page.totals.count.toLocaleString()}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn ghost small"
-                        onClick={() => {
-                          setPageSize(PAGE_SIZE);
-                          setPageIndex(0);
-                        }}
-                      >
-                        Back to pages of {PAGE_SIZE}
-                      </button>
-                    )}
-                  </div>
-                )}
-
                 {selected.size > 0 && (
                   <div className="bulkbar">
                     <span className="bcount">{selected.size} selected</span>
@@ -553,6 +504,55 @@ export default function StatementsPage() {
                     </tbody>
                   </table>
                 </div>
+
+                {page.totals.count > PAGE_SIZE && (
+                  <div className="pager">
+                    <button
+                      type="button"
+                      className="btn ghost small"
+                      disabled={pageIndex === 0}
+                      onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
+                    >
+                      ← Previous
+                    </button>
+                    <span className="muted small">
+                      Page {pageIndex + 1} of {Math.max(1, Math.ceil(page.totals.count / pageSize))}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn ghost small"
+                      disabled={!page.hasMore}
+                      onClick={() => setPageIndex((i) => i + 1)}
+                    >
+                      Next →
+                    </button>
+                    {pageSize === PAGE_SIZE ? (
+                      /* Paging keeps the table quick; sometimes you want the
+                         whole month on one screen to sweep it in one go. */
+                      <button
+                        type="button"
+                        className="btn ghost small"
+                        onClick={() => {
+                          setPageSize(Math.min(page.totals.count, 1000));
+                          setPageIndex(0);
+                        }}
+                      >
+                        Load all {page.totals.count.toLocaleString()}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn ghost small"
+                        onClick={() => {
+                          setPageSize(PAGE_SIZE);
+                          setPageIndex(0);
+                        }}
+                      >
+                        Back to pages of {PAGE_SIZE}
+                      </button>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>

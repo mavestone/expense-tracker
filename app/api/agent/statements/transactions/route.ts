@@ -13,6 +13,7 @@ export const GET = api(
     const statusParam = p.get("status");
     const { transactions, totals } = await listTransactions({
       fy: p.get("fy") || undefined,
+      month: p.get("month") || undefined,
       accountId: p.get("accountId") || undefined,
       status: statusParam ? (statusParam.split(",") as TxnStatus[]) : undefined,
       direction: (p.get("direction") as "in" | "out") || undefined,

@@ -496,11 +496,21 @@ export async function transactionMonths(fy?: string, accountId?: string) {
 }
 
 /** Per-status counts for the current filter, so the UI can show progress. */
-export async function reviewProgress(f: Pick<TxnFilters, "fy" | "accountId">) {
+export async function reviewProgress(f: Pick<TxnFilters, "fy" | "accountId" | "month">) {
   const d = await db();
   const conds = [];
   if (f.fy) conds.push(eq(schema.statementTransactions.fyLabel, f.fy));
   if (f.accountId) conds.push(eq(schema.statementTransactions.accountId, f.accountId));
+  // Progress has to answer for the same lines the table is showing, or the
+  // header claims a whole year's worth of work against one month's label.
+  if (f.month && /^\d{4}-\d{2}$/.test(f.month)) {
+    const [y, m] = f.month.split("-").map(Number);
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    conds.push(
+      gte(schema.statementTransactions.date, `${f.month}-01`),
+      lte(schema.statementTransactions.date, `${f.month}-${String(last).padStart(2, "0")}`)
+    );
+  }
   const rows = await d
     .select({ status: schema.statementTransactions.status, n: sql<number>`count(*)` })
     .from(schema.statementTransactions)

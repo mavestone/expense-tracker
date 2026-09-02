@@ -51,6 +51,13 @@ export default function TriageDonut({
   const data = SEGMENTS.map((s) => ({ ...s, value: progress[s.key] })).filter((d) => d.value > 0);
   if (progress.total === 0) return null;
 
+  /** Rounded for reading, but never to 0% or 100% while the bucket is neither. */
+  const pct = (n: number) => {
+    if (n === 0) return "0%";
+    if (n === progress.total) return "100%";
+    return `${Math.min(99, Math.max(1, Math.round((n / progress.total) * 100)))}%`;
+  };
+
   return (
     <div className="triage">
       <div className="triage-chart" aria-hidden>
@@ -99,6 +106,7 @@ export default function TriageDonut({
             <i style={{ background: s.colour }} />
             <b>{progress[s.key].toLocaleString()}</b>
             <span>{s.label}</span>
+            <em>{pct(progress[s.key])}</em>
           </button>
         ))}
       </div>
