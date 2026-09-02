@@ -1607,3 +1607,46 @@ h1, h2, h3,
 .topbar .brand { flex: 1 1 0; min-width: 0; }
 .topbar .actions { flex: 1 1 0; justify-content: flex-end; }
 .topbar .sectionswitch { flex: none; }
+
+/* ── Statement triage progress ────────────────────────────────────────
+   A donut rather than a bar, because the question is "how much is left"
+   and a ring answers that at a glance. Every wedge and every key row is
+   a filter — the chart is a control, not a decoration. */
+.triage { display: flex; align-items: center; gap: 26px; margin-top: 4px; }
+.triage-chart { position: relative; width: 132px; height: 132px; flex: none; }
+.triage-centre {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; pointer-events: none;
+}
+.triage-centre b { font-family: var(--display); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.triage-centre span { font-size: 11px; color: var(--ink-3); }
+
+.triage-key { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; flex: 1; min-width: 0; }
+.triage-item {
+  appearance: none; border: 0; background: none; font: inherit; cursor: pointer; text-align: left;
+  display: flex; align-items: baseline; gap: 8px; padding: 6px 9px; border-radius: 10px;
+  color: var(--ink-2); transition: background 0.12s ease;
+}
+.triage-item:hover:not(:disabled) { background: var(--hover); }
+.triage-item.on { background: var(--accent-soft); }
+.triage-item:disabled { opacity: 0.45; cursor: default; }
+.triage-item i { width: 9px; height: 9px; border-radius: 3px; flex: none; align-self: center; }
+.triage-item b { font-family: var(--display); font-variant-numeric: tabular-nums; font-size: 15px; color: var(--ink); }
+.triage-item span { font-size: 12.5px; }
+
+@media (max-width: 620px) {
+  .triage { flex-direction: column; align-items: stretch; gap: 14px; }
+  .triage-chart { align-self: center; }
+}
+
+/* Original statements, grouped by the month they cover — a month of Wise is
+   one file per balance, so the period alone tells them apart from nothing. */
+.stgroup { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-right: 14px; }
+.stgroup-label { margin-right: 2px; }
+.stcount {
+  margin-left: 7px; padding: 1px 6px; border-radius: 999px; background: var(--chip);
+  font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink-3);
+}
+
+.pager { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.pager .btn { min-height: 30px; }

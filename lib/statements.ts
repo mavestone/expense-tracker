@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { and, asc, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
 import { db, schema } from "./db";
 import { financialYear, isValidIsoDate } from "./fy";
 import { getStorage, sha256Hex, getReceiptBytes } from "./storage";
@@ -423,6 +423,8 @@ export async function setTxnReview(
 
 export type TxnFilters = {
   fy?: string;
+  /** "2026-08" — one calendar month, for working a statement at a time. */
+  month?: string;
   accountId?: string;
   status?: TxnStatus[];
   direction?: "in" | "out";
@@ -437,6 +439,14 @@ export async function listTransactions(f: TxnFilters = {}) {
   const conds = [];
   if (f.fy) conds.push(eq(schema.statementTransactions.fyLabel, f.fy));
   if (f.accountId) conds.push(eq(schema.statementTransactions.accountId, f.accountId));
+  if (f.month && /^\d{4}-\d{2}$/.test(f.month)) {
+    const [y, m] = f.month.split("-").map(Number);
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    conds.push(
+      gte(schema.statementTransactions.date, `${f.month}-01`),
+      lte(schema.statementTransactions.date, `${f.month}-${String(last).padStart(2, "0")}`)
+    );
+  }
   if (f.status?.length) conds.push(inArray(schema.statementTransactions.status, f.status));
   if (f.direction) conds.push(eq(schema.statementTransactions.direction, f.direction));
   if (f.minCents != null) conds.push(sql`coalesce(${schema.statementTransactions.audAmountCents}, 0) >= ${f.minCents}`);
@@ -466,7 +476,23 @@ export async function listTransactions(f: TxnFilters = {}) {
     .from(schema.statementTransactions)
     .where(where);
 
-  return { transactions: rows, totals, hasMore: rows.length === limit };
+  return { transactions: rows, totals, hasMore: (f.offset ?? 0) + rows.length < Number(totals.count) };
+}
+
+/** The calendar months that have lines, newest first — the month picker's options. */
+export async function transactionMonths(fy?: string, accountId?: string) {
+  const d = await db();
+  const conds = [];
+  if (fy) conds.push(eq(schema.statementTransactions.fyLabel, fy));
+  if (accountId) conds.push(eq(schema.statementTransactions.accountId, accountId));
+  const rows = await d
+    .select({ month: sql<string>`substr(${schema.statementTransactions.date}, 1, 7)`, n: sql<number>`count(*)` })
+    .from(schema.statementTransactions)
+    .where(conds.length ? and(...conds) : undefined)
+    .groupBy(sql`substr(${schema.statementTransactions.date}, 1, 7)`);
+  return rows
+    .map((r) => ({ month: r.month, count: Number(r.n) }))
+    .sort((a, b) => b.month.localeCompare(a.month));
 }
 
 /** Per-status counts for the current filter, so the UI can show progress. */
@@ -504,6 +530,22 @@ export async function statementsOverview(fy?: string) {
     .where(stConds.length ? and(...stConds) : undefined)
     .orderBy(asc(schema.statements.periodStart));
 
+  // A month of Wise arrives as one file per balance, so every statement in it
+  // carries the same period. The currencies are what tell them apart.
+  const ccy = await d
+    .select({
+      statementId: schema.statementTransactions.statementId,
+      currency: schema.statementTransactions.currency,
+    })
+    .from(schema.statementTransactions)
+    .groupBy(schema.statementTransactions.statementId, schema.statementTransactions.currency);
+  const byStatement = new Map<string, string[]>();
+  for (const r of ccy) {
+    const list = byStatement.get(r.statementId) ?? [];
+    if (!list.includes(r.currency)) list.push(r.currency);
+    byStatement.set(r.statementId, list);
+  }
+
   const out = [];
   for (const a of accounts) {
     const mine = sts.filter((s) => s.accountId === a.id);
@@ -519,6 +561,7 @@ export async function statementsOverview(fy?: string) {
         periodEnd: s.periodEnd,
         sizeBytes: s.sizeBytes,
         txnCount: s.txnCount,
+        currencies: (byStatement.get(s.id) ?? []).sort(),
         hasFile: Boolean(s.storageKey),
       })),
     });

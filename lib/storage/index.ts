@@ -53,8 +53,12 @@ class LocalStorage implements ReceiptStorage {
     this.dir = path.isAbsolute(dataDir) ? path.join(dataDir, "receipts") : path.join(process.cwd(), dataDir, "receipts");
   }
   async put(key: string, buf: Buffer): Promise<string> {
-    await fs.mkdir(this.dir, { recursive: true });
-    const p = path.join(this.dir, key);
+    // Keys can be nested — statement originals live under "statements/".
+    // Creating only the base directory left writeFile throwing ENOENT for
+    // every one of them, which the hosted setup never saw because it stores
+    // to Blob instead.
+    const p = this.resolve(key);
+    await fs.mkdir(path.dirname(p), { recursive: true });
     try {
       // "wx" = fail if exists — enforces immutability at the filesystem level.
       await fs.writeFile(p, buf, { flag: "wx" });
@@ -66,8 +70,15 @@ class LocalStorage implements ReceiptStorage {
   }
   async get(storageKey: string): Promise<Buffer> {
     // storageKey may be a bare key (current) or an absolute path (defensive).
-    const p = path.isAbsolute(storageKey) ? storageKey : path.join(this.dir, path.basename(storageKey));
-    return fs.readFile(p);
+    return fs.readFile(path.isAbsolute(storageKey) ? storageKey : this.resolve(storageKey));
+  }
+
+  /** Join under the store, and never above it. */
+  private resolve(key: string): string {
+    const p = path.resolve(this.dir, key);
+    if (p !== this.dir && !p.startsWith(this.dir + path.sep))
+      throw new Error("Storage key escapes the receipts directory.");
+    return p;
   }
 }
 

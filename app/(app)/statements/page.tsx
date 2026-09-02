@@ -8,12 +8,13 @@ import { formatDateAU } from "@/lib/fy";
 import { useDialog } from "@/components/Dialog";
 import { useFy } from "@/components/FyContext";
 import { useToast } from "@/components/Toast";
+import TriageDonut, { type SegmentKey } from "@/components/TriageDonut";
 
 type Progress = { total: number; unreviewed: number; logged: number; personal: number; ignored: number; donePct: number };
 
 type StatementFile = {
   id: string; fyLabel: string; filename: string; periodStart: string | null; periodEnd: string | null;
-  sizeBytes: number; txnCount: number; hasFile: boolean;
+  sizeBytes: number; txnCount: number; hasFile: boolean; currencies?: string[];
 };
 
 type Account = {
@@ -32,7 +33,13 @@ type Txn = {
   ignoreReason: string | null;
 };
 
-type TxnPage = { transactions: Txn[]; totals: { count: number; outCents: number; inCents: number; unconverted: number }; hasMore: boolean; progress: Progress };
+type TxnPage = {
+  transactions: Txn[];
+  totals: { count: number; outCents: number; inCents: number; unconverted: number };
+  hasMore: boolean;
+  progress: Progress;
+  months?: { month: string; count: number }[];
+};
 
 const STATUS_TABS = [
   { id: "unreviewed", label: "Needs a decision" },
@@ -41,6 +48,19 @@ const STATUS_TABS = [
   { id: "ignored", label: "Internal transfers & fees" },
   { id: "", label: "All" },
 ] as const;
+
+/** Enough rows to work through, few enough that the table stays responsive. */
+const PAGE_SIZE = 50;
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function monthLabel(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  return `${MONTH_NAMES[m - 1] ?? key} ${y}`;
+}
 
 const NOT_SPENDING_REASONS = [
   "Own transfer between my accounts",
@@ -70,6 +90,10 @@ export default function StatementsPage() {
   // Triage is per year; "all years" falls back to the current FY.
   const { resolved: fy } = useFy();
   const [accountId, setAccountId] = useState("");
+  const [month, setMonth] = useState("");
+  const [months, setMonths] = useState<{ month: string; count: number }[]>([]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [status, setStatus] = useState<string>("unreviewed");
   const [direction, setDirection] = useState("");
   const [q, setQ] = useState("");
@@ -91,16 +115,29 @@ export default function StatementsPage() {
   const loadTxns = useCallback(() => {
     const p = new URLSearchParams();
     if (fy) p.set("fy", fy);
+    if (month) p.set("month", month);
     if (accountId) p.set("accountId", accountId);
     if (status) p.set("status", status);
     if (direction) p.set("direction", direction);
     if (q.trim()) p.set("q", q.trim());
     if (minDollars) p.set("min", String(Math.round(Number(minDollars) * 100)));
-    p.set("limit", "300");
+    p.set("limit", String(pageSize));
+    p.set("offset", String(pageIndex * pageSize));
     setPage(null);
     setSelected(new Set());
-    apiGet<TxnPage>(`/api/statements/transactions?${p}`).then(setPage).catch((e) => setError(e.message));
-  }, [fy, accountId, status, direction, q, minDollars]);
+    apiGet<TxnPage>(`/api/statements/transactions?${p}`)
+      .then((r) => {
+        setPage(r);
+        if (r.months) setMonths(r.months);
+      })
+      .catch((e) => setError(e.message));
+  }, [fy, month, accountId, status, direction, q, minDollars, pageIndex, pageSize]);
+
+  // Any change to what is being looked at starts again at the first page —
+  // otherwise page 4 of a 300-row filter becomes an empty screen on a 20-row one.
+  useEffect(() => {
+    setPageIndex(0);
+  }, [fy, month, accountId, status, direction, q, minDollars]);
 
   useEffect(() => {
     const t = setTimeout(loadTxns, q ? 250 : 0);
@@ -215,20 +252,21 @@ export default function StatementsPage() {
             <div className="card mb2">
               <div className="revhead">
                 <div>
-                  <div className="revpct">{shownProgress.donePct}%</div>
                   <div className="muted small">
-                    {shownProgress.logged + shownProgress.ignored} of {shownProgress.total} lines dealt with
+                    {/* A personal line is decided. Counting only logged and
+                        ignored read "61 of 323" next to "0 to decide". */}
+                    {(shownProgress.total - shownProgress.unreviewed).toLocaleString()} of{" "}
+                    {shownProgress.total.toLocaleString()} lines dealt with
                     {current ? ` · ${current.label}` : " · all accounts"}
+                    {month ? ` · ${monthLabel(month)}` : ""}
                   </div>
                 </div>
-                <div className="revlegend">
-                  <span><i className="dot logged" /> {shownProgress.logged} business</span>
-                  <span><i className="dot personal" /> {shownProgress.personal} personal</span>
-                  <span><i className="dot ignored" /> {shownProgress.ignored} transfers</span>
-                  <span><i className="dot todo" /> {shownProgress.unreviewed} to decide</span>
-                </div>
               </div>
-              <Bar p={shownProgress} />
+              <TriageDonut
+                progress={shownProgress}
+                active={(STATUS_TABS.some((t) => t.id === status) ? status : "") as SegmentKey | ""}
+                onSelect={(k) => setStatus(status === k ? "" : k)}
+              />
             </div>
           )}
 
@@ -282,15 +320,38 @@ export default function StatementsPage() {
 
           {current && current.statements.length > 0 && (
             <div className="stfiles mb2">
-              <span className="muted small">Original statements —</span>
-              {current.statements.map((st) => (
-                <span key={st.id} className="stfile">
-                  <a href={`/api/statements/${st.id}/file`} target="_blank" rel="noreferrer" title={`${st.filename} · ${st.txnCount} lines`}>
-                    ⤓ {st.periodStart ? `${formatDateAU(st.periodStart)} – ${formatDateAU(st.periodEnd!)}` : st.filename}
-                  </a>
-                  <button type="button" className="rmfile" disabled={busy === st.id} title="Remove this statement" onClick={() => removeStatement(st.id, st.filename)}>✕</button>
-                </span>
-              ))}
+              {/* A month of Wise is one file per balance, so seven chips all
+                  read "01/08/2026 – 31/08/2026". Group by month and name the
+                  balance, which is the only thing that differs. */}
+              {Object.entries(
+                current.statements.reduce<Record<string, StatementFile[]>>((acc, st) => {
+                  const key = st.periodStart ? st.periodStart.slice(0, 7) : "—";
+                  (acc[key] ??= []).push(st);
+                  return acc;
+                }, {})
+              )
+                .sort((a, b) => b[0].localeCompare(a[0]))
+                .map(([key, group]) => (
+                  <span className="stgroup" key={key}>
+                    <span className="muted small stgroup-label">
+                      {key === "—" ? "Undated" : monthLabel(key)}
+                    </span>
+                    {group.map((st) => (
+                      <span key={st.id} className="stfile">
+                        <a
+                          href={`/api/statements/${st.id}/file`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={`${st.filename} · ${st.txnCount} lines`}
+                        >
+                          ⤓ {st.currencies?.length ? st.currencies.join(" / ") : st.filename}
+                          <span className="stcount">{st.txnCount}</span>
+                        </a>
+                        <button type="button" className="rmfile" disabled={busy === st.id} title="Remove this statement" onClick={() => removeStatement(st.id, st.filename)}>✕</button>
+                      </span>
+                    ))}
+                  </span>
+                ))}
             </div>
           )}
 
@@ -303,6 +364,14 @@ export default function StatementsPage() {
                   </button>
                 ))}
               </div>
+              <select value={month} onChange={(e) => setMonth(e.target.value)} title="Month">
+                <option value="">All months</option>
+                {months.map((m) => (
+                  <option key={m.month} value={m.month}>
+                    {monthLabel(m.month)} ({m.count})
+                  </option>
+                ))}
+              </select>
               <input placeholder="Search merchant or description…" value={q} onChange={(e) => setQ(e.target.value)} />
               <select value={direction} onChange={(e) => setDirection(e.target.value)}>
                 <option value="">In &amp; out</option>
@@ -330,8 +399,61 @@ export default function StatementsPage() {
                 <div className="muted small mb1">
                   {page.totals.count} line{page.totals.count === 1 ? "" : "s"} · out {formatAUD(page.totals.outCents)} · in {formatAUD(page.totals.inCents)}
                   {page.totals.unconverted > 0 && ` · ${page.totals.unconverted} foreign line${page.totals.unconverted === 1 ? "" : "s"} not converted, excluded from these totals`}
-                  {page.hasMore && " · showing the first 300"}
+                  {page.totals.count > pageSize &&
+                    ` · showing ${(pageIndex * pageSize + 1).toLocaleString()}–${Math.min(
+                      pageIndex * pageSize + page.transactions.length,
+                      page.totals.count
+                    ).toLocaleString()}`}
                 </div>
+                {page.totals.count > PAGE_SIZE && (
+                  <div className="pager">
+                    <button
+                      type="button"
+                      className="btn ghost small"
+                      disabled={pageIndex === 0}
+                      onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
+                    >
+                      ← Previous
+                    </button>
+                    <span className="muted small">
+                      Page {pageIndex + 1} of {Math.max(1, Math.ceil(page.totals.count / pageSize))}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn ghost small"
+                      disabled={!page.hasMore}
+                      onClick={() => setPageIndex((i) => i + 1)}
+                    >
+                      Next →
+                    </button>
+                    {pageSize === PAGE_SIZE ? (
+                      /* Paging keeps the table quick; sometimes you want the
+                         whole month on one screen to sweep it in one go. */
+                      <button
+                        type="button"
+                        className="btn ghost small"
+                        onClick={() => {
+                          setPageSize(Math.min(page.totals.count, 1000));
+                          setPageIndex(0);
+                        }}
+                      >
+                        Load all {page.totals.count.toLocaleString()}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn ghost small"
+                        onClick={() => {
+                          setPageSize(PAGE_SIZE);
+                          setPageIndex(0);
+                        }}
+                      >
+                        Back to pages of {PAGE_SIZE}
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {selected.size > 0 && (
                   <div className="bulkbar">
                     <span className="bcount">{selected.size} selected</span>
