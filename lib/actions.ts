@@ -38,27 +38,33 @@ export async function actionStack(fy: string) {
   const clients = unpaidRows.length ? await d.select().from(schema.clients) : [];
   const clientName = (id: string) => clients.find((c) => c.id === id)?.name ?? "—";
 
-  const first = unpaidRows[0];
-  const unpaid = first
+  // Every unpaid invoice, not just the oldest. "1 other invoice outstanding"
+  // tells you something is there without telling you what, which is the one
+  // thing a prompt to chase money should never do.
+  const items = unpaidRows.map((r) => ({
+    id: r.id,
+    number: r.number,
+    client: clientName(r.clientId),
+    currency: r.currency,
+    totalCents: r.totalCents,
+    issueDate: r.issueDate,
+    dueDate: r.dueDate,
+    gstTreatment: r.gstTreatment,
+    overdueDays: r.dueDate < today ? daysBetween(r.dueDate, today) : 0,
+  }));
+
+  const unpaid = items.length
     ? {
-        count: unpaidRows.length,
+        count: items.length,
         // Currencies are not summed: an invoice in USD and one in AUD have no
         // meaningful total, and the AUD figure lives on the income record.
         byCurrency: [...new Map(
           unpaidRows.map((r) => [r.currency, unpaidRows.filter((x) => x.currency === r.currency)
             .reduce((s, x) => s + x.totalCents, 0)]),
         )].map(([currency, cents]) => ({ currency, cents })),
-        first: {
-          id: first.id,
-          number: first.number,
-          client: clientName(first.clientId),
-          currency: first.currency,
-          totalCents: first.totalCents,
-          issueDate: first.issueDate,
-          dueDate: first.dueDate,
-          gstTreatment: first.gstTreatment,
-          overdueDays: first.dueDate < today ? daysBetween(first.dueDate, today) : 0,
-        },
+        items,
+        /** The one most overdue — the card leads with it. */
+        first: items[0],
       }
     : null;
 

@@ -5,16 +5,26 @@ import { AlertTriangle, ListChecks, Receipt, Check, Camera, FileText, CalendarCl
 import { formatAUD, formatCurrency } from "@/lib/money";
 import { formatDateShort } from "@/lib/fy";
 
+export type UnpaidInvoice = {
+  id: string;
+  number: string;
+  client: string;
+  currency: string;
+  totalCents: number;
+  issueDate: string;
+  dueDate: string;
+  gstTreatment: string;
+  overdueDays: number;
+};
+
 export type ActionData = {
   fy: string;
   today: string;
   unpaid: {
     count: number;
     byCurrency: { currency: string; cents: number }[];
-    first: {
-      id: string; number: string; client: string; currency: string; totalCents: number;
-      issueDate: string; dueDate: string; gstTreatment: string; overdueDays: number;
-    };
+    items: UnpaidInvoice[];
+    first: UnpaidInvoice;
   } | null;
   triage: { undecided: number; total: number; autoFiled: number; business: number } | null;
   statementDue: {
@@ -63,22 +73,41 @@ export default function ActionStack({ data, nextBas }: { data: ActionData; nextB
               ? `Overdue ${data.unpaid.first.overdueDays} day${data.unpaid.first.overdueDays === 1 ? "" : "s"}`
               : "Awaiting payment"}
           </div>
+
+          {/* One figure only when one currency: a USD invoice and an AUD one
+              have no meaningful total, so the count leads instead. */}
           <div className="act-figure">
-            {formatCurrency(data.unpaid.first.totalCents, data.unpaid.first.currency)}
-          </div>
-          <div className="act-context">
-            <div><b>{data.unpaid.first.number}</b> · {data.unpaid.first.client}</div>
-            <div>
-              Issued {formatDateShort(data.unpaid.first.issueDate)} · due {formatDateShort(data.unpaid.first.dueDate)}
-              {data.unpaid.first.gstTreatment === "gst_free" ? " · GST-free export" : ""}
-            </div>
-            {data.unpaid.count > 1 && (
-              <div>{data.unpaid.count - 1} other invoice{data.unpaid.count > 2 ? "s" : ""} outstanding</div>
+            {data.unpaid.byCurrency.length === 1
+              ? formatCurrency(data.unpaid.byCurrency[0].cents, data.unpaid.byCurrency[0].currency)
+              : data.unpaid.count}
+            {data.unpaid.byCurrency.length > 1 && (
+              <span className="act-of">invoices unpaid</span>
             )}
           </div>
+
+          <ul className="unpaidstack">
+            {data.unpaid.items.map((inv) => (
+              <li key={inv.id}>
+                <Link href={`/invoices/${inv.id}`}>
+                  <span className="us-main">
+                    <b>{inv.number}</b>
+                    <span className="us-client">{inv.client}</span>
+                  </span>
+                  <span className="us-right">
+                    <b>{formatCurrency(inv.totalCents, inv.currency)}</b>
+                    <span className={inv.overdueDays > 0 ? "us-late" : "us-due"}>
+                      {inv.overdueDays > 0
+                        ? `${inv.overdueDays}d overdue`
+                        : `due ${formatDateShort(inv.dueDate)}`}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
           <div className="btnrow">
-            <Link href={`/invoices/${data.unpaid.first.id}`} className="btn" style={{ flex: 1 }}>Open invoice</Link>
-            <Link href="/invoices?status=sent" className="btn ghost">All unpaid</Link>
+            <Link href="/invoices?status=sent" className="btn" style={{ flex: 1 }}>All unpaid</Link>
           </div>
         </article>
       )}
