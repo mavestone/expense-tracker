@@ -1371,7 +1371,10 @@ h1, h2, h3,
    into the loudest object on the screen. */
 @media (min-width: 861px) {
   .actionstack { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .actionstack:has(> .act:only-child) { grid-template-columns: minmax(0, 520px); }
+  /* A lone card takes the same column as the FY card directly beneath it, so
+     the two left edges and right edges line up rather than nearly lining up. */
+  .actionstack:has(> .act:only-child) { grid-template-columns: 1.35fr 1fr; }
+  .actionstack:has(> .act:only-child) > .act { grid-column: 1; }
   .actionstack:has(> .act:first-child:nth-last-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
