@@ -328,14 +328,6 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
           </label>
         </div>
 
-        <div className="grid2">
-          <label>
-            Purchase order / their reference <span className="muted small">optional</span>
-            <input value={v.purchaseOrder} onChange={(e) => setV({ ...v, purchaseOrder: e.target.value })} />
-            <span className="hint">The client&rsquo;s own PO number, if they use one. Not your invoice reference.</span>
-          </label>
-        </div>
-
         <div className="grid3">
           <label>
             Issue date

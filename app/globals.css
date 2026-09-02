@@ -217,7 +217,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 13px; }
 .field > label { font-size: 12.5px; font-weight: 620; color: var(--ink-2); }
 .field .hint { font-size: 12px; color: var(--ink-3); }
-input[type="text"], input[type="number"], input[type="date"], input[type="password"], input[type="search"], input[type="email"],
+/* Matched on what an input is NOT, rather than listing the types it might be:
+   an <input> with no type attribute is a text input, and the old list quietly
+   skipped every one of them — they fell back to the browser's white ground. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
 select, textarea {
   font: inherit; color: var(--ink);
   background: var(--surface);

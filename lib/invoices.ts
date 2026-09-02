@@ -261,12 +261,26 @@ export async function updateInvoice(id: string, input: InvoiceInput) {
   if (errors.length) throw new ValidationError(errors);
 
   const dbi = await db();
+
+  // A draft's reference is still editable — it has not been issued, so nothing
+  // downstream is quoting it yet. Uniqueness is still enforced, because a
+  // reused number is indistinguishable from a duplicate invoice.
+  const number = input.number?.trim() || existing.number;
+  if (number !== existing.number) {
+    const clash = await dbi
+      .select({ id: schema.invoices.id })
+      .from(schema.invoices)
+      .where(eq(schema.invoices.number, number));
+    if (clash.some((c) => c.id !== id)) throw new ValidationError([`Invoice number ${number} already exists.`]);
+  }
+
   const totals = invoiceTotals(input.lines, input.gstTreatment);
   const now = new Date().toISOString();
   await dbi.transaction(async (tx) => {
     await tx
       .update(schema.invoices)
       .set({
+        number,
         clientId: input.clientId,
         kind: input.kind ?? existing.kind,
         issueDate: input.issueDate,
