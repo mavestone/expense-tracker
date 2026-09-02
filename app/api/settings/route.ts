@@ -2,6 +2,7 @@ import { api, json } from "@/lib/api";
 import { db, schema } from "@/lib/db";
 import { getSettings, setSetting } from "@/lib/settings";
 import { writeAudit } from "@/lib/audit";
+import { isAccountingBasis } from "@/lib/basis";
 import { eq, asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -40,7 +41,12 @@ const EDITABLE_SETTINGS = new Set([
 export const PATCH = api(async (req) => {
   const body = (await req.json()) as {
     settings?: Record<string, unknown>;
-    thresholds?: { fyLabel: string; instantWriteoffCents: number | null; note?: string | null }[];
+    thresholds?: {
+      fyLabel: string;
+      instantWriteoffCents?: number | null;
+      incomeBasis?: string | null;
+      note?: string | null;
+    }[];
   };
   const d = await db();
   const before = await getSettings();
@@ -61,11 +67,21 @@ export const PATCH = api(async (req) => {
       if (t.instantWriteoffCents != null && (!Number.isInteger(t.instantWriteoffCents) || t.instantWriteoffCents < 0))
         return json({ error: "Invalid threshold amount" }, { status: 400 });
       const [existing] = await d.select().from(schema.fyThresholds).where(eq(schema.fyThresholds.fyLabel, t.fyLabel));
+      if (t.incomeBasis != null && !isAccountingBasis(t.incomeBasis))
+        return json({ error: "Income basis must be accruals or cash." }, { status: 400 });
+      const nextWriteoff =
+        t.instantWriteoffCents !== undefined ? t.instantWriteoffCents : undefined;
       if (existing) {
-        if (existing.instantWriteoffCents !== t.instantWriteoffCents || existing.note !== (t.note ?? existing.note)) {
+        const nextBasis = t.incomeBasis ?? existing.incomeBasis;
+        const nextThreshold = nextWriteoff !== undefined ? nextWriteoff : existing.instantWriteoffCents;
+        if (
+          existing.instantWriteoffCents !== nextThreshold ||
+          existing.incomeBasis !== nextBasis ||
+          existing.note !== (t.note ?? existing.note)
+        ) {
           await d
             .update(schema.fyThresholds)
-            .set({ instantWriteoffCents: t.instantWriteoffCents, note: t.note ?? existing.note })
+            .set({ instantWriteoffCents: nextThreshold, incomeBasis: nextBasis, note: t.note ?? existing.note })
             .where(eq(schema.fyThresholds.id, existing.id));
           await writeAudit(d, [
             {

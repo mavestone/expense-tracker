@@ -12,11 +12,20 @@ export const settings = sqliteTable("settings", {
   value: text("value").notNull(), // JSON-encoded
 });
 
-/** Instant asset write-off threshold per financial year (set by the user, never hardcoded). */
+/** Per-financial-year settings the owner sets and the app never guesses. */
 export const fyThresholds = sqliteTable("fy_thresholds", {
   id: text("id").primaryKey(),
   fyLabel: text("fy_label").notNull().unique(), // e.g. "2025-26"
   instantWriteoffCents: integer("instant_writeoff_cents"), // null = not confirmed yet
+
+  /**
+   * How income is recognised for income tax in this year: accruals (when
+   * invoiced) or cash (when received). Per year, not global — a year that has
+   * been lodged cannot have its basis rewritten underneath it, and the change
+   * from one to the other is exactly where income gets counted twice.
+   */
+  incomeBasis: text("income_basis").notNull().default("accruals"),
+
   note: text("note"),
 });
 

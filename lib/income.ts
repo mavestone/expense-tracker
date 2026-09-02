@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { and, desc, eq, gte, inArray, isNotNull, isNull, like, lte, or, sql } from "drizzle-orm";
 import { db, schema } from "./db";
+import { belongsToFy, fyBases, getFyBasis } from "./basis";
 import { applyRate, divRound, isValidRate, normalizeRate } from "./money";
 import { financialYear, isValidIsoDate } from "./fy";
 import { getRateForDate, FxUnavailableError } from "./fx";
@@ -300,10 +301,15 @@ export async function listIncome(filters: { fy?: string; status?: ("active" | "v
 /** Income summary for a financial year, split by type and by client. */
 export async function incomeSummary(fy: string) {
   const dbi = await db();
-  const rows = await dbi
-    .select()
-    .from(schema.income)
-    .where(and(eq(schema.income.financialYear, fy), eq(schema.income.status, "active")));
+  const [basis, bases] = await Promise.all([getFyBasis(fy), fyBases()]);
+  // On cash the year's income is what it received, so the filter cannot be a
+  // WHERE on financialYear — that column records when it was invoiced.
+  const all = await dbi.select().from(schema.income).where(eq(schema.income.status, "active"));
+  const rows = all.filter((r) => belongsToFy(r, fy, basis, bases));
+
+  // Still owed is only a meaningful figure on accruals. On cash an unpaid
+  // invoice is not income yet at all, so it cannot also be outstanding income.
+  const invoiced = all.filter((r) => r.financialYear === fy);
 
   const byType = new Map<string, { type: string; count: number; audCents: number; gstCents: number }>();
   const byClient = new Map<string, { client: string; count: number; audCents: number }>();
@@ -319,11 +325,12 @@ export async function incomeSummary(fy: string) {
     count: rows.length,
     audCents: rows.reduce((s, r) => s + r.audAmountCents, 0),
     gstCents: rows.reduce((s, r) => s + r.gstAmountCents, 0),
-    outstandingCents: rows.filter((r) => !r.datePaid).reduce((s, r) => s + r.audAmountCents, 0),
-    outstandingCount: rows.filter((r) => !r.datePaid).length,
+    outstandingCents: invoiced.filter((r) => !r.datePaid).reduce((s, r) => s + r.audAmountCents, 0),
+    outstandingCount: invoiced.filter((r) => !r.datePaid).length,
   };
   return {
     fy,
+    basis,
     byType: [...byType.values()].sort((a, b) => b.audCents - a.audCents),
     byClient: [...byClient.values()].sort((a, b) => b.audCents - a.audCents),
     totals,

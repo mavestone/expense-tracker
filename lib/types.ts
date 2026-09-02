@@ -2,7 +2,13 @@
 
 export type CategoryDto = { id: string; name: string; isEquipment: boolean; sortOrder: number; archived: boolean };
 export type PaymentMethodDto = { id: string; name: string; sortOrder: number; archived: boolean };
-export type ThresholdDto = { id: string; fyLabel: string; instantWriteoffCents: number | null; note: string | null };
+export type ThresholdDto = {
+  id: string;
+  fyLabel: string;
+  instantWriteoffCents: number | null;
+  incomeBasis: "accruals" | "cash";
+  note: string | null;
+};
 export type SettingsDto = {
   business_name: string;
   receipt_required_over_cents: number;

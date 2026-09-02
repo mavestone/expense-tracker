@@ -1,0 +1,1 @@
+ALTER TABLE `fy_thresholds` ADD `income_basis` text DEFAULT 'accruals' NOT NULL;

@@ -92,6 +92,17 @@ export default function SettingsPage() {
     await load();
   }
 
+  /**
+   * Changing a year's basis moves what counts as that year's income, so it
+   * saves on its own rather than riding along with the threshold field.
+   */
+  async function saveBasis(fyLabelStr: string, basis: string) {
+    setError(null);
+    await apiSend("/api/settings", "PATCH", { thresholds: [{ fyLabel: fyLabelStr, incomeBasis: basis }] });
+    toast(`FY ${fyLabelStr} now on ${basis === "cash" ? "a cash" : "an accruals"} basis`);
+    await load();
+  }
+
   async function addFyRow(e: React.FormEvent) {
     e.preventDefault();
     if (!/^\d{4}-\d{2}$/.test(newFy)) return setError('FY label must look like "2024-25".');
@@ -187,9 +198,12 @@ export default function SettingsPage() {
       </form>
 
       <div className="card">
-        <h2>Instant asset write-off thresholds</h2>
+        <h2>Financial year settings</h2>
         <p className="small muted mt0">
-          Set per financial year — <b>confirm the current figure with your accountant</b> (it changes year to year and this app deliberately doesn't assume one). Equipment purchases at or above the threshold get a capital-asset suggestion.
+          Both are per financial year. The <b>instant asset write-off threshold</b> changes year to year — confirm it with your
+          accountant, this app deliberately doesn&rsquo;t assume one; equipment at or above it gets a capital-asset suggestion.
+          The <b>income basis</b> decides when income counts: when you invoiced it, or when the money arrived. A year already
+          lodged should keep the basis it was lodged on.
         </p>
         {data.thresholds.map((t) => (
           <div className="grid3" key={t.id} style={{ alignItems: "end" }}>
@@ -203,11 +217,21 @@ export default function SettingsPage() {
                 onChange={(e) => setThresholdEdits((m) => ({ ...m, [t.fyLabel]: e.target.value }))}
               />
             </div>
-            <div className="field" style={{ gridColumn: "span 2" }}>
+            <div className="field">
+              <label>Income basis</label>
+              <select
+                value={t.incomeBasis}
+                onChange={(e) => saveBasis(t.fyLabel, e.target.value)}
+              >
+                <option value="accruals">Accruals — when invoiced</option>
+                <option value="cash">Cash — when received</option>
+              </select>
+            </div>
+            <div className="field">
               <label>&nbsp;</label>
               <div className="btnrow">
                 <button type="button" className="btn ghost" onClick={() => saveThreshold(t.fyLabel)}>Save</button>
-                {t.instantWriteoffCents == null && <span className="badge warn">not set — capital suggestions off for this FY</span>}
+                {t.instantWriteoffCents == null && <span className="badge warn">threshold not set</span>}
               </div>
             </div>
           </div>

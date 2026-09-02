@@ -1,9 +1,10 @@
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, schema } from "./db";
 import { applyBp } from "./money";
-import { fyQuarter, quarterLabel, type BasQuarter } from "./fy";
+import { financialYear, fyQuarter, quarterLabel, type BasQuarter } from "./fy";
 import { getSettings } from "./settings";
 import { receiptCountMap, ValidationError } from "./expenses";
+import { belongsToFy, fyBases, getFyBasis, incomeMonthKey } from "./basis";
 import { explainTreatment, businessPortionCents, balancingAdjustment } from "./depreciation";
 
 /** Active (confirmed, non-void) expenses for an FY. Reports never include drafts or voids. */
@@ -262,11 +263,12 @@ export async function monthlyTrend(fy: string) {
   const dbi = await db();
   const range = fyRange(fy);
 
-  const [inc, exp] = await Promise.all([
-    dbi
-      .select()
-      .from(schema.income)
-      .where(and(eq(schema.income.financialYear, fy), eq(schema.income.status, "active"))),
+  const [basis, bases] = await Promise.all([getFyBasis(fy), fyBases()]);
+
+  const [incAll, exp] = await Promise.all([
+    // On cash the year's income is not the year's invoices, so the whole
+    // ledger is read and filtered by the rule rather than by financialYear.
+    dbi.select().from(schema.income).where(eq(schema.income.status, "active")),
     dbi
       .select()
       .from(schema.expenses)
@@ -289,10 +291,13 @@ export async function monthlyTrend(fy: string) {
   }
   const byKey = new Map(months.map((m) => [m.key, m]));
 
+  const inc = incAll.filter((r) => belongsToFy(r, fy, basis, bases));
   for (const r of inc) {
     // Interest is income but not client revenue; it still belongs in the
     // profit picture, so it is counted here (unlike G1 on the BAS).
-    byKey.get(r.dateEarned.slice(0, 7))!.incomeCents += r.audAmountCents;
+    const key = incomeMonthKey(r, basis);
+    const m = key ? byKey.get(key) : null;
+    if (m) m.incomeCents += r.audAmountCents;
   }
   for (const e of exp) {
     const m = byKey.get(e.dateIncurred.slice(0, 7));
@@ -302,6 +307,7 @@ export async function monthlyTrend(fy: string) {
 
   return {
     fy,
+    basis,
     months,
     totals: {
       incomeCents: months.reduce((s, m) => s + m.incomeCents, 0),
@@ -330,7 +336,12 @@ export async function monthBreakdown(month: string) {
   const start = `${month}-01`;
   const end = `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
 
-  const [expenseRows, incomeRows, categories] = await Promise.all([
+  // The month has to be read on the basis of the financial year it sits in,
+  // or the panel disagrees with the bar it was opened from.
+  const fyOfMonth = financialYear(start);
+  const [basis, bases] = await Promise.all([getFyBasis(fyOfMonth), fyBases()]);
+
+  const [expenseRows, incomeAll, categories] = await Promise.all([
     d
       .select()
       .from(schema.expenses)
@@ -342,19 +353,13 @@ export async function monthBreakdown(month: string) {
         )
       )
       .orderBy(desc(schema.expenses.dateIncurred)),
-    d
-      .select()
-      .from(schema.income)
-      .where(
-        and(
-          gte(schema.income.dateEarned, start),
-          lte(schema.income.dateEarned, end),
-          inArray(schema.income.status, ["active"])
-        )
-      )
-      .orderBy(desc(schema.income.dateEarned)),
+    d.select().from(schema.income).where(inArray(schema.income.status, ["active"])),
     d.select().from(schema.categories),
   ]);
+
+  const incomeRows = incomeAll
+    .filter((r) => belongsToFy(r, fyOfMonth, basis, bases) && incomeMonthKey(r, basis) === month)
+    .sort((a, b) => (basis === "cash" ? (b.datePaid ?? "").localeCompare(a.datePaid ?? "") : b.dateEarned.localeCompare(a.dateEarned)));
 
   const catName = new Map(categories.map((c) => [c.id, c.name]));
 
@@ -374,7 +379,7 @@ export async function monthBreakdown(month: string) {
 
   const income = incomeRows.map((r) => ({
     id: r.id,
-    date: r.dateEarned,
+    date: (basis === "cash" ? r.datePaid : r.dateEarned) ?? r.dateEarned,
     name: r.clientName,
     description: r.description,
     invoiceRef: r.invoiceRef,
@@ -391,6 +396,7 @@ export async function monthBreakdown(month: string) {
     month,
     start,
     end,
+    basis,
     income,
     expenses,
     totals: { incomeCents, expenseCents, netCents: incomeCents - expenseCents },
