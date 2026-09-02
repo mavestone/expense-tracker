@@ -22,6 +22,9 @@ export const GET = api(
     return json({
       totals,
       transactions: transactions.map((t) => ({
+        // The id is what a triage run acts on; without it the only way to
+        // change a line from outside the app is to guess at a filter.
+        id: t.id,
         date: t.date,
         description: t.description.slice(0, 90),
         direction: t.direction,
