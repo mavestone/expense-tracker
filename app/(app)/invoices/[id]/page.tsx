@@ -70,6 +70,7 @@ export default function InvoiceDetailPage() {
     const initial: InvoiceFormValue = {
       id: inv.id,
       clientId: inv.client.id,
+      number: inv.number,
       kind: inv.kind === "reimbursement" ? "reimbursement" : "services",
       issueDate: inv.issueDate,
       dueDate: inv.dueDate,

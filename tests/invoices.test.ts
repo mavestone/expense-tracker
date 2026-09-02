@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { invoiceTotals, lineAmountCents, validateInvoiceInput, type InvoiceInput, invoicePdfFilename, INVOICE_KINDS } from "../lib/invoices";
+import { invoiceTotals, lineAmountCents, validateInvoiceInput, type InvoiceInput, invoicePdfFilename, INVOICE_KINDS, invoiceRefFor } from "../lib/invoices";
 import { validateClientInput, type ClientInput } from "../lib/clients";
 
 const line = (unit: number, qty?: number) => ({ description: "Edit", unitAmountCents: unit, quantityMilli: qty });
@@ -212,5 +212,25 @@ describe("reimbursement invoices", () => {
     // Recovering a cost from a domestic client is a taxable supply like any
     // other — the kind does not make it GST-free.
     expect(invoiceTotals([{ description: "Courier", unitAmountCents: 10000 }], "gst").gstCents).toBe(1000);
+  });
+});
+
+describe("default invoice reference", () => {
+  it("is the client prefix and the issue date as DDMMYY", () => {
+    expect(invoiceRefFor("KC", "2026-09-02")).toBe("KC_020926");
+    expect(invoiceRefFor("AG", "2026-08-12")).toBe("AG_120826");
+    expect(invoiceRefFor("LEVEE", "2025-12-10")).toBe("LEVEE_101225");
+  });
+
+  it("keeps the leading zeros that make it sortable and unambiguous", () => {
+    // 020926 not 2926 — a ref people read back off a bank statement.
+    expect(invoiceRefFor("KC", "2026-09-02")).not.toBe("KC_2926");
+    expect(invoiceRefFor("KC", "2026-01-05")).toBe("KC_050126");
+  });
+
+  it("matches the refs these invoices had already drifted to", () => {
+    expect(invoiceRefFor("KC", "2026-06-29")).toBe("KC_290626");
+    expect(invoiceRefFor("KC", "2026-07-30")).toBe("KC_300726");
+    expect(invoiceRefFor("KC", "2026-08-01")).toBe("KC_010826");
   });
 });

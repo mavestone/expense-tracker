@@ -1703,3 +1703,18 @@ h1, h2, h3,
 .restlist li { display: flex; flex-direction: column; gap: 1px; }
 .restlist b { font-size: 12.5px; font-weight: 650; color: var(--ink-2); }
 .restlist span { font-size: 12.5px; color: var(--ink-3); line-height: 1.4; }
+
+/* Chrome paints autofilled fields with its own white ground and text colour,
+   which in dark mode is white on white — the value is there and invisible.
+   There is no property to switch it off, only one to paint over it. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  caret-color: var(--ink);
+  transition: background-color 9999s ease-out;
+}

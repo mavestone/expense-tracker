@@ -145,10 +145,14 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
 
   useEffect(() => {
     if (!v.clientId || initial) return setNextNumber("");
-    apiGet<{ number: string }>(`/api/invoices/next-number?clientId=${v.clientId}`)
-      .then((r) => setNextNumber(r.number))
+    apiGet<{ number: string }>(`/api/invoices/next-number?clientId=${v.clientId}&issueDate=${v.issueDate}`)
+      .then((r) => {
+        setNextNumber(r.number);
+        // Fill the field, but never overwrite a reference already typed.
+        setV((prev) => (prev.number?.trim() ? prev : { ...prev, number: r.number }));
+      })
       .catch(() => setNextNumber(""));
-  }, [v.clientId, initial]);
+  }, [v.clientId, v.issueDate, initial]);
 
   useEffect(() => {
     if (!pickerOpen || Object.keys(catNames).length) return;
@@ -215,6 +219,7 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
     try {
       const payload = {
         clientId: v.clientId,
+        number: v.number?.trim() || null,
         kind: v.kind,
         issueDate: v.issueDate,
         dueDate: v.dueDate,
@@ -309,11 +314,25 @@ export default function InvoiceForm({ initial }: { initial?: InvoiceFormValue })
                 + New
               </button>
             </span>
-            {nextNumber && <span className="hint">Next number: <b>{nextNumber}</b></span>}
           </label>
           <label>
-            Purchase order / reference <span className="muted small">optional</span>
+            Invoice reference
+            <input
+              value={v.number ?? ""}
+              placeholder={nextNumber || "KC_020926"}
+              onChange={(e) => setV({ ...v, number: e.target.value })}
+            />
+            <span className="hint">
+              Defaults to the client&rsquo;s prefix and the issue date. Overwrite it if you need to.
+            </span>
+          </label>
+        </div>
+
+        <div className="grid2">
+          <label>
+            Purchase order / their reference <span className="muted small">optional</span>
             <input value={v.purchaseOrder} onChange={(e) => setV({ ...v, purchaseOrder: e.target.value })} />
+            <span className="hint">The client&rsquo;s own PO number, if they use one. Not your invoice reference.</span>
           </label>
         </div>
 

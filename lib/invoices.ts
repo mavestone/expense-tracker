@@ -99,43 +99,50 @@ export function validateInvoiceInput(input: InvoiceInput): string[] {
 }
 
 /**
- * Next number for a client: <prefix>_NN, continuing from the highest sequence
- * already used. Numbers are never reused, including by voided invoices — a gap
- * in a number sequence is a question an auditor asks, and "it was voided" is a
- * better answer than a silently reissued number.
+ * The default reference for a new invoice: `<prefix>_DDMMYY` from the issue
+ * date — KC_020926 for Kirin on 2 September 2026.
  *
- * Two details this has to get right:
+ * A date reads back years later without a ledger to decode it, which a bare
+ * counter does not, and it is the convention these invoices had already drifted
+ * to on their own (KC_290626, KC_300726, KC_010826). It is only a default: the
+ * form lets it be overwritten, and an explicit `number` always wins.
  *
- *  - Refs raised before this module existed live on income records, so those
- *    are read too. Ignoring them would restart every client at 01 and collide.
- *  - A suffix of five digits or more is a DATE, not a sequence. KC_290626 is
- *    29 June 2026; treating it as sequence 290,626 would jump the whole client
- *    to KC_290627 and never recover.
+ * Two invoices to one client on one day would collide on a unique index, so a
+ * letter is appended rather than failing — KC_020926B, then C. Numbers are
+ * never reused, including by voided invoices: a gap is a question an auditor
+ * asks, and "it was voided" is a better answer than a silently reissued number.
  */
-const SEQUENCE_SUFFIX = /_(\d{1,4})$/;
+export function invoiceRefFor(prefix: string, issueDate: string): string {
+  const [y, m, d] = issueDate.split("-");
+  return `${prefix}_${d}${m}${y.slice(2)}`;
+}
 
-export async function nextInvoiceNumber(clientId: string): Promise<string> {
+export async function nextInvoiceNumber(clientId: string, issueDate?: string): Promise<string> {
   const dbi = await db();
   const [client] = await dbi.select().from(schema.clients).where(eq(schema.clients.id, clientId));
   if (!client) throw new NotFoundError("Client not found");
-  const prefix = client.invoicePrefix;
 
-  // Prefix match only, then filter exactly in JS — SQLite LIKE treats "_" as a
+  const base = invoiceRefFor(client.invoicePrefix, issueDate || todayIso());
+
+  // Prefix match only, then compare exactly in JS — SQLite LIKE treats "_" as a
   // single-character wildcard and drizzle emits no ESCAPE clause, so trying to
   // escape it here silently matches nothing.
   const [rows, legacy] = await Promise.all([
-    dbi.select({ number: schema.invoices.number }).from(schema.invoices).where(like(schema.invoices.number, `${prefix}%`)),
-    dbi.select({ number: schema.income.invoiceRef }).from(schema.income).where(like(schema.income.invoiceRef, `${prefix}%`)),
+    dbi.select({ number: schema.invoices.number }).from(schema.invoices).where(like(schema.invoices.number, `${base}%`)),
+    dbi.select({ number: schema.income.invoiceRef }).from(schema.income).where(like(schema.income.invoiceRef, `${base}%`)),
   ]);
+  const taken = new Set([...rows, ...legacy].map((r) => r.number ?? ""));
 
-  let max = 0;
-  for (const r of [...rows, ...legacy]) {
-    const ref = r.number ?? "";
-    if (!ref.startsWith(`${prefix}_`)) continue;
-    const m = SEQUENCE_SUFFIX.exec(ref);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
+  if (!taken.has(base)) return base;
+  for (let i = 0; i < 25; i++) {
+    const candidate = `${base}${String.fromCharCode(66 + i)}`; // B, C, D…
+    if (!taken.has(candidate)) return candidate;
   }
-  return `${prefix}_${String(max + 1).padStart(2, "0")}`;
+  return `${base}${Date.now().toString().slice(-4)}`;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 /**
@@ -167,7 +174,7 @@ export async function createInvoice(input: InvoiceInput) {
   const [client] = await dbi.select().from(schema.clients).where(eq(schema.clients.id, input.clientId));
   if (!client) throw new NotFoundError("Client not found");
 
-  const number = input.number?.trim() || (await nextInvoiceNumber(input.clientId));
+  const number = input.number?.trim() || (await nextInvoiceNumber(input.clientId, input.issueDate));
   const dupe = await dbi.select({ id: schema.invoices.id }).from(schema.invoices).where(eq(schema.invoices.number, number));
   if (dupe.length) throw new ValidationError([`Invoice number ${number} already exists.`]);
 

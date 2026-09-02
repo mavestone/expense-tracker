@@ -7,5 +7,6 @@ export const runtime = "nodejs";
 export const GET = api(async (req) => {
   const clientId = new URL(req.url).searchParams.get("clientId");
   if (!clientId) throw new ValidationError(["clientId is required."]);
-  return json({ number: await nextInvoiceNumber(clientId) });
+  const issueDate = new URL(req.url).searchParams.get("issueDate") || undefined;
+  return json({ number: await nextInvoiceNumber(clientId, issueDate) });
 });
