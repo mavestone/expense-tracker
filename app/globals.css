@@ -6,6 +6,9 @@
 :root {
   --bg: #eef1fb;
   --surface: rgba(255, 255, 255, 0.66);
+  /* The same surface with nothing behind it — for anything that sits over
+     content and has to be read, not seen through. */
+  --surface-solid: #fbfcff;
   --surface-2: rgba(236, 240, 255, 0.72);
   --hover: rgba(41, 66, 230, 0.07);
   --ink: #0a0f1f;
@@ -54,6 +57,7 @@
   :root {
     --bg: #070a14;
     --surface: rgba(20, 27, 48, 0.66);
+    --surface-solid: #131a2e;
     --surface-2: rgba(30, 39, 66, 0.60);
     --hover: rgba(99, 126, 255, 0.12);
     --ink: #eef1ff;
@@ -1651,3 +1655,16 @@ h1, h2, h3,
 .pager { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 .pager .btn { min-height: 30px; }
 .triage-item em { font-style: normal; margin-left: auto; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+
+/* ── Modals are opaque ────────────────────────────────────────────────
+   A dialog sits on top of the page and has to be read. Frosted glass is
+   a nice effect on a card that is part of the page; on a panel holding
+   thirteen rows of figures it puts the page's own numbers behind them.
+   The backdrop does the separating instead. */
+.dlg {
+  background: var(--surface-solid);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.dlg-backdrop { background: rgba(6, 9, 18, 0.62); }
