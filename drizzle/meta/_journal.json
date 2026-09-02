@@ -71,6 +71,13 @@
       "when": 1788020121005,
       "tag": "0009_lucky_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1788362797788,
+      "tag": "0010_loose_runaways",
+      "breakpoints": true
     }
   ]
 }

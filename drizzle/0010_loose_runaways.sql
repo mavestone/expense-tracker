@@ -1,0 +1,1 @@
+ALTER TABLE `statement_transactions` ADD `external_ref` text;

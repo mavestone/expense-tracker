@@ -318,6 +318,18 @@ export const statementTransactions = sqliteTable(
     accountId: text("account_id").notNull().references(() => statementAccounts.id),
     fyLabel: text("fy_label").notNull(),
 
+    /**
+     * The bank's own reference for the line — Wise's TransferWise ID.
+     *
+     * Wise bills a card charge and its FX fee as two separate debits, named
+     * `CARD-123` and `FEE-CARD-123`. Without the reference the fee is just
+     * another unexplained row: 97 of 323 lines in one two-month load, none of
+     * which can be decided on its own merits because a fee is not a purchase.
+     * With it, a fee is paired to the charge it belongs to and follows
+     * whatever that charge is decided to be.
+     */
+    externalRef: text("external_ref"),
+
     date: text("date").notNull(),
     description: text("description").notNull(),
     counterparty: text("counterparty"),

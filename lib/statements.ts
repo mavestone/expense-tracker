@@ -25,6 +25,8 @@ import { classify, namesLookAlike } from "./classify";
 export type TxnStatus = "unreviewed" | "logged" | "personal" | "ignored";
 
 export type ParsedTxn = {
+  /** The bank's own reference, e.g. Wise's TransferWise ID. */
+  externalRef?: string | null;
   date: string;
   description: string;
   counterparty?: string | null;
@@ -190,6 +192,7 @@ export async function ingestStatement(input: {
       statementId,
       accountId: input.accountId,
       fyLabel: input.fyLabel,
+      externalRef: t.externalRef ?? null,
       date: t.date,
       description: t.description.slice(0, 400),
       counterparty: t.counterparty ?? null,
@@ -334,6 +337,24 @@ export async function autoMatch(fyLabel?: string) {
   return { scanned: txns.length, matched };
 }
 
+/**
+ * The fee lines belonging to a charge.
+ *
+ * Wise names them `FEE-<parent ref>`, so the relationship is exact rather
+ * than inferred from amount and date. A fee has no independent existence —
+ * deciding it separately from the charge it belongs to is asking the same
+ * question twice and inviting the two answers to disagree.
+ */
+async function feeSiblingIds(ref: string | null, excludeId: string): Promise<string[]> {
+  if (!ref || ref.startsWith("FEE-")) return [];
+  const d = await db();
+  const rows = await d
+    .select({ id: schema.statementTransactions.id })
+    .from(schema.statementTransactions)
+    .where(eq(schema.statementTransactions.externalRef, `FEE-${ref}`));
+  return rows.map((r) => r.id).filter((id) => id !== excludeId);
+}
+
 export async function setTxnReview(
   id: string,
   input: { status: TxnStatus; ignoreReason?: string | null; note?: string | null; matchedExpenseId?: string | null; matchedIncomeId?: string | null }
@@ -363,6 +384,26 @@ export async function setTxnReview(
         updatedAt: now,
       })
       .where(eq(schema.statementTransactions.id, id));
+
+    // The fee follows the charge, including which record explains it.
+    const fees = await feeSiblingIds(existing.externalRef, id);
+    if (fees.length) {
+      await tx
+        .update(schema.statementTransactions)
+        .set({
+          status: input.status,
+          ignoreReason:
+            input.status === "ignored" || input.status === "personal"
+              ? input.ignoreReason?.trim() || "Bank fees"
+              : null,
+          matchedExpenseId: input.matchedExpenseId ?? existing.matchedExpenseId,
+          matchedIncomeId: input.matchedIncomeId ?? existing.matchedIncomeId,
+          matchSource: input.status === "unreviewed" ? null : "fee-of-parent",
+          updatedAt: now,
+        })
+        .where(inArray(schema.statementTransactions.id, fees));
+    }
+
     await writeAudit(tx, [
       {
         entityType: "statement_txn",
@@ -371,7 +412,9 @@ export async function setTxnReview(
         field: "status",
         oldValue: existing.status,
         newValue: input.status,
-        note: input.ignoreReason ?? null,
+        note: [input.ignoreReason, fees.length ? `${fees.length} fee line(s) followed` : null]
+          .filter(Boolean)
+          .join(" · ") || null,
       },
     ]);
   });
@@ -590,9 +633,24 @@ export async function bulkReview(
   const reason =
     input.status === "ignored" || input.status === "personal" ? input.ignoreReason?.trim() || null : null;
 
+  // Fees follow their charges here too, so selecting 40 rows and pressing
+  // Personal does not leave 40 orphan fee lines behind it.
+  const picked = await d
+    .select({ id: schema.statementTransactions.id, ref: schema.statementTransactions.externalRef })
+    .from(schema.statementTransactions)
+    .where(inArray(schema.statementTransactions.id, ids));
+  const parentRefs = picked.map((p) => p.ref).filter((r): r is string => Boolean(r) && !r!.startsWith("FEE-"));
+  const feeRows = parentRefs.length
+    ? await d
+        .select({ id: schema.statementTransactions.id })
+        .from(schema.statementTransactions)
+        .where(inArray(schema.statementTransactions.externalRef, parentRefs.map((r) => `FEE-${r}`)))
+    : [];
+  const all = [...new Set([...ids, ...feeRows.map((r) => r.id)])];
+
   let updated = 0;
-  for (let i = 0; i < ids.length; i += 400) {
-    const chunk = ids.slice(i, i + 400);
+  for (let i = 0; i < all.length; i += 400) {
+    const chunk = all.slice(i, i + 400);
     await d
       .update(schema.statementTransactions)
       .set({
