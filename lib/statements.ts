@@ -191,7 +191,11 @@ export async function ingestStatement(input: {
       updatedAt: now,
       statementId,
       accountId: input.accountId,
-      fyLabel: input.fyLabel,
+      // A line's financial year comes from its own date, not from the statement
+      // it arrived in. A card period of 20 Jun – 19 Jul straddles 30 June, so
+      // taking the statement's label would file a fortnight of one year's
+      // spending into the next — every year, at the same boundary.
+      fyLabel: isValidIsoDate(t.date) ? financialYear(t.date) : input.fyLabel,
       externalRef: t.externalRef ?? null,
       date: t.date,
       description: t.description.slice(0, 400),
